@@ -166,15 +166,27 @@ class ResNet(BaseModel):
         return x
 
 
-def resnet110():
+def resnet110(num_classes=100):
     """
     Constructs a ResNet 110 model.
     """
-    return ResNet(num_classes=100, depth=110, block_name="BasicBlock")
+    return ResNet(num_classes=num_classes, depth=110, block_name="BasicBlock")
 
-def resnet32():
+def resnet56(num_classes=100):
+    """
+    Constructs a ResNet 56 model.
+    """
+    return ResNet(num_classes=num_classes, depth=56, block_name="BasicBlock")
+
+def resnet32(num_classes=100):
     """
     Constructs a ResNet 32 model.
     """
-    return ResNet(num_classes=100, depth=32, block_name="BasicBlock")
+    return ResNet(num_classes=num_classes, depth=32, block_name="BasicBlock")
+
+def resnet20(num_classes=100):
+    """
+    Constructs a ResNet 20 model.
+    """
+    return ResNet(num_classes=num_classes, depth=20, block_name="BasicBlock")
 
