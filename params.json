@@ -1,0 +1,72 @@
+{
+  "metadata": {
+    "description": "Training parameters for different experimental setups",
+    "version": "1.0"
+  },
+  "params1": {
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "initial_lr": 0.1,
+        "momentum": 0.9,
+        "nestrov": false,
+        "weight_decay": 0.0005
+      }
+    },
+    "scheduler": {
+      "type": "StepLR",
+      "parameters": {
+        "gamma": 0.2,
+        "step_size": 50
+      }
+    },
+    "training": {
+      "max_epochs": 200,
+      "using_amp": true
+    }
+  },
+  "params2": {
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "initial_lr": 0.1,
+        "momentum": 0.9,
+        "nestrov": false,
+        "weight_decay": 0.0001
+      }
+    },
+    "scheduler": {
+      "type": "StepLR",
+      "parameters": {
+        "gamma": 0.1,
+        "step_size": 50
+      }
+    },
+    "training": {
+      "max_epochs": 100,
+      "using_amp": false
+    }
+  },
+  "params3": {
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "initial_lr": 0.1,
+        "momentum": 0.9,
+        "nestrov": true,
+        "weight_decay": 0.0005
+      }
+    },
+    "scheduler": {
+      "type": "MultiStepLR",
+      "parameters": {
+        "gamma": 0.2,
+        "milestones": [60, 80, 90]
+      }
+    },
+    "training": {
+      "max_epochs": 120,
+      "using_amp": true
+    }
+  }
+}
