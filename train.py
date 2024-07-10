@@ -7,39 +7,36 @@ from torch.utils.tensorboard import SummaryWriter
 import torch.cuda.amp as amp
 import argparse
 import os
-import csv
+from datetime import datetime
 from sklearn.metrics import f1_score
 
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
 from utils.param_utils import load_params
 from utils.model_utils import initialize_model, get_optimizer, get_scheduler
-
-def log_to_csv(file_path, data):
-    file_exists = os.path.isfile(file_path)
-    with open(file_path, 'a', newline='') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=data.keys())
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(data)
+from utils.log_utils import log_to_csv, create_log_entry
 
 def main():
     parser = argparse.ArgumentParser(description="Training script for CIFAR-100 with ResNet")
     parser.add_argument('--params', type=str, required=True, help='Path to the params.json file')
     parser.add_argument('--param_set', type=str, required=True, help='Name of the parameter set to use')
     parser.add_argument('--resume', type=str, default='', help='Path to the checkpoint file to resume training')
-    parser.add_argument('--model_name', type=str, default='resnet20', help='Model name (resnet20, resnet56, resnet110)')
+    parser.add_argument('--model_name', type=str, required=True, help='Model name (resnet20, resnet56, resnet110)')
     parser.add_argument('--run_name', type=str, default='', help='Optional run name to overwrite the generated name')
     parser.add_argument('--checkpoint_dir', type=str, default='checkpoints', help='Directory to save checkpoints')
     parser.add_argument('--checkpoint_freq', type=int, default=10, help='Frequency of checkpoint saving in epochs')
+    parser.add_argument('--use_val', action='store_true', help='Use a validation set')
+    parser.add_argument('--val_size', type=float, default=0.2, help='Proportion of training data used for validation set (0 < val_size < 1)')
+    parser.add_argument('--disable_test', action='store_true', help='Disable the test set if validation set is used')
+    parser.add_argument('--csv_dir', type=str, default='csv_logs', help='Directory to save CSV logs')
     args = parser.parse_args()
 
     params = load_params(args.params, args.param_set)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Generate or use provided run name
-    run_name_base = args.run_name or f"{args.param_set}_{args.model_name}"
-    run_name = run_name_base
-    run_counter = 1
+    run_name_base = args.run_name or f"{args.model_name}_{args.param_set}"
+    run_name = run_name_base + "_run1"
+    run_counter = 2
 
     while os.path.exists(f"runs/{run_name}") or os.path.exists(f"{run_name}.pth"):
         run_name = f"{run_name_base}_run{run_counter}"
@@ -50,7 +47,11 @@ def main():
     if not os.path.exists(args.checkpoint_dir):
         os.makedirs(args.checkpoint_dir)
 
-    csv_file = f"runs/{run_name}_metrics.csv"
+    if not os.path.exists(args.csv_dir):
+        os.makedirs(args.csv_dir)
+
+    csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
+    start_time = datetime.now()
 
     # Define transformations for the training, validation, and test sets
     transform_train = transforms.Compose([
@@ -67,15 +68,22 @@ def main():
 
     # Load the CIFAR-100 dataset
     dataset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform_train)
-    train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
-    trainset, valset = random_split(dataset, [train_size, val_size])
+    
+    if args.use_val:
+        val_size = int(args.val_size * len(dataset))
+        train_size = len(dataset) - val_size
+        trainset, valset = random_split(dataset, [train_size, val_size])
+    else:
+        trainset = dataset
 
     trainloader = DataLoader(trainset, batch_size=params['training']['batch_size'], shuffle=True, num_workers=2, pin_memory=True)
-    valloader = DataLoader(valset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2, pin_memory=True)
-
-    testset = torchvision.datasets.CIFAR100(root='./data', train=False, download=True, transform=transform_test)
-    testloader = DataLoader(testset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2, pin_memory=True)
+    
+    if args.use_val:
+        valloader = DataLoader(valset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2, pin_memory=True)
+    
+    if not args.use_val or not args.disable_test:
+        testset = torchvision.datasets.CIFAR100(root='./data', train=False, download=True, transform=transform_test)
+        testloader = DataLoader(testset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2, pin_memory=True)
 
     # Initialize the nn model
     model = initialize_model(args.model_name, device)
@@ -129,13 +137,8 @@ def main():
         writer.add_scalar('training_accuracy', accuracy, epoch)
         writer.add_scalar('training_f1_score', f1, epoch)
 
-        log_to_csv(csv_file, {
-            'epoch': epoch,
-            'phase': 'train',
-            'loss': epoch_loss,
-            'accuracy': accuracy,
-            'f1_score': f1
-        })
+        log_entry = create_log_entry(epoch, 'train', epoch_loss, accuracy, f1, start_time)
+        log_to_csv(csv_file, log_entry)
 
     def validate(epoch):
         model.eval()
@@ -161,14 +164,11 @@ def main():
         writer.add_scalar('validation_loss', epoch_loss, epoch)
         writer.add_scalar('validation_accuracy', accuracy, epoch)
         writer.add_scalar('validation_f1_score', f1, epoch)
+        # print the validation accuracy
+        print(f'--> Validation accuracy: {accuracy:.2f}%')
 
-        log_to_csv(csv_file, {
-            'epoch': epoch,
-            'phase': 'validation',
-            'loss': epoch_loss,
-            'accuracy': accuracy,
-            'f1_score': f1
-        })
+        log_entry = create_log_entry(epoch, 'validation', epoch_loss, accuracy, f1, start_time)
+        log_to_csv(csv_file, log_entry)
 
     def test(epoch):
         model.eval()
@@ -194,14 +194,11 @@ def main():
         writer.add_scalar('test_loss', epoch_loss, epoch)
         writer.add_scalar('test_accuracy', accuracy, epoch)
         writer.add_scalar('test_f1_score', f1, epoch)
+        # print the test accuracy
+        print(f'--> Test accuracy: {accuracy:.2f}%')
 
-        log_to_csv(csv_file, {
-            'epoch': epoch,
-            'phase': 'test',
-            'loss': epoch_loss,
-            'accuracy': accuracy,
-            'f1_score': f1
-        })
+        log_entry = create_log_entry(epoch, 'test', epoch_loss, accuracy, f1, start_time)
+        log_to_csv(csv_file, log_entry)
 
     num_epochs = params['training']['max_epochs']
     start_epoch = 0
@@ -211,8 +208,10 @@ def main():
 
     for epoch in range(start_epoch, num_epochs):
         train(epoch)
-        validate(epoch)
-        test(epoch)
+        if args.use_val:
+            validate(epoch)
+        if not args.use_val or not args.disable_test:
+            test(epoch)
 
         if (epoch + 1) % args.checkpoint_freq == 0:
             checkpoint_filename = os.path.join(args.checkpoint_dir, f"{run_name}_epoch{epoch+1}.pth.tar")
