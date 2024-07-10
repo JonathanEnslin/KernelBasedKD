@@ -88,7 +88,8 @@
     },
     "training": {
       "max_epochs": 240,
-      "using_amp": true
+      "using_amp": true,
+      "batch_size": 128
     }
   },
   "params5": {
