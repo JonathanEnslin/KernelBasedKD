@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from models.resnet import resnet20, resnet56, resnet110  # Adjust import according to your setup
 
