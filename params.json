@@ -9,7 +9,7 @@
       "parameters": {
         "initial_lr": 0.1,
         "momentum": 0.9,
-        "nestrov": false,
+        "nesterov": false,
         "weight_decay": 0.0005
       }
     },
@@ -31,7 +31,7 @@
       "parameters": {
         "initial_lr": 0.1,
         "momentum": 0.9,
-        "nestrov": false,
+        "nesterov": false,
         "weight_decay": 0.0001
       }
     },
@@ -53,7 +53,7 @@
       "parameters": {
         "initial_lr": 0.1,
         "momentum": 0.9,
-        "nestrov": true,
+        "nesterov": true,
         "weight_decay": 0.0005
       }
     },
@@ -67,6 +67,59 @@
     "training": {
       "max_epochs": 120,
       "using_amp": true
+    }
+  },
+  "params4": {
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "initial_lr": 0.1,
+        "momentum": 0.9,
+        "nesterov": true,
+        "weight_decay": 0.0005
+      }
+    },
+    "scheduler": {
+      "type": "MultiStepLR",
+      "parameters": {
+        "gamma": 0.1,
+        "milestones": [150, 180, 210]
+      }
+    },
+    "training": {
+      "max_epochs": 240,
+      "using_amp": true
+    }
+  },
+  "params5": {
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "initial_lr": 0.1,
+        "momentum": 0.9,
+        "nesterov": true,
+        "weight_decay": 0.0001
+      }
+    },
+    "scheduler": {
+      "type": "CosineAnnealingLR",
+      "parameters": {
+        "T_max": 200,
+        "eta_min": 0.0001
+      }
+    },
+    "training": {
+      "max_epochs": 200,
+      "using_amp": true,
+      "batch_size": 128,
+      "augmentation": {
+        "random_crop": true,
+        "random_horizontal_flip": true,
+        "cutout": {
+          "n_holes": 1,
+          "length": 16
+        }
+      }
     }
   }
 }

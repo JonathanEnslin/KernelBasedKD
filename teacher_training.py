@@ -6,11 +6,15 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import torch.cuda.amp as amp
+import models.base_model as base_model
 
 from models.resnet import resnet20, resnet56, resnet110  # Custom ResNet for CIFAR datasets
 import os
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+RUN_NAME = 'resnet20_cifar100_params4_post_activation_run1'
+CHECKPOINT_NAME = f'{RUN_NAME}.pth.tar'
+
+def save_checkpoint(state, is_best, filename=CHECKPOINT_NAME):
     print(f"=> Saving checkpoint '{filename}'. Please do not interrupt the saving process else the checkpoint file might get corrupted.")
     torch.save(state, filename)
     if is_best:
@@ -18,7 +22,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     print(f"=> Checkpoint saved at '{filename}'")
     
 
-def load_checkpoint(model, optimizer, scheduler, scaler, filename='checkpoint.pth.tar'):
+def load_checkpoint(model, optimizer, scheduler, scaler, filename=CHECKPOINT_NAME):
     if os.path.isfile(filename):
         print(f"=> loading checkpoint '{filename}'")
         checkpoint = torch.load(filename)
@@ -56,7 +60,7 @@ if __name__ == "__main__":
     testloader = DataLoader(testset, batch_size=128, shuffle=False, num_workers=2, pin_memory=True)
 
     # Initialize the nn model
-    model = resnet20()
+    model: base_model = resnet20()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -66,10 +70,10 @@ if __name__ == "__main__":
     optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4, nesterov=True)
     scaler = amp.GradScaler()
 
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[60, 80, 90], gamma=0.2)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[150, 180, 210], gamma=0.1)
 
     # Initialize TensorBoard writer
-    writer = SummaryWriter("runs/resnet20_cifar100_params3_post_activation")
+    writer = SummaryWriter(f"runs/{RUN_NAME}")
 
     # Training function
     def train(epoch):
@@ -118,8 +122,8 @@ if __name__ == "__main__":
         writer.add_scalar('test_accuracy', accuracy, epoch)
 
     # Main training loop
-    num_epochs = 100
-    start_epoch = load_checkpoint(model, optimizer, scheduler, scaler, filename='checkpoint.pth.tar')
+    num_epochs = 240
+    start_epoch = load_checkpoint(model, optimizer, scheduler, scaler, filename=CHECKPOINT_NAME)
 
     for epoch in range(start_epoch, num_epochs):
         train(epoch)
@@ -135,6 +139,6 @@ if __name__ == "__main__":
             }, is_best=False)
 
 
-
+    model.save(f'{RUN_NAME}.pth')
     # Close the TensorBoard writer
     writer.close()
