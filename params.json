@@ -13,15 +13,26 @@
         "weight_decay": 0.0005
       }
     },
-    "scheduler": {
-      "type": "StepLR",
-      "parameters": {
-        "gamma": 0.2,
-        "step_size": 50
+    "schedulers": [
+      {
+        "type": "StepLR",
+        "parameters": {
+          "gamma": 0.2,
+          "step_size": 50
+        }
+      },
+      {
+        "type": "ReduceLROnPlateau",
+        "parameters": {
+          "mode": "min",
+          "factor": 0.1,
+          "patience": 10
+        }
       }
-    },
+    ],
     "training": {
       "max_epochs": 200,
+      "batch_size": 128,
       "using_amp": true
     }
   },
@@ -35,15 +46,18 @@
         "weight_decay": 0.0001
       }
     },
-    "scheduler": {
-      "type": "StepLR",
-      "parameters": {
-        "gamma": 0.1,
-        "step_size": 50
+    "schedulers": [
+      {
+        "type": "StepLR",
+        "parameters": {
+          "gamma": 0.1,
+          "step_size": 50
+        }
       }
-    },
+    ],
     "training": {
       "max_epochs": 100,
+      "batch_size": 128,
       "using_amp": false
     }
   },
@@ -57,15 +71,18 @@
         "weight_decay": 0.0005
       }
     },
-    "scheduler": {
-      "type": "MultiStepLR",
-      "parameters": {
-        "gamma": 0.2,
-        "milestones": [60, 80, 90]
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.2,
+          "milestones": [60, 80, 90]
+        }
       }
-    },
+    ],
     "training": {
       "max_epochs": 120,
+      "batch_size": 128,
       "using_amp": true
     }
   },
@@ -79,20 +96,46 @@
         "weight_decay": 0.0005
       }
     },
-    "scheduler": {
-      "type": "MultiStepLR",
-      "parameters": {
-        "gamma": 0.1,
-        "milestones": [150, 180, 210]
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.1,
+          "milestones": [150, 180, 210]
+        }
       }
-    },
+    ],
     "training": {
       "max_epochs": 240,
-      "using_amp": true,
-      "batch_size": 128
+      "batch_size": 128,
+      "using_amp": true
     }
   },
   "params5": {
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "lr": 0.05,
+        "momentum": 0.9,
+        "nesterov": true,
+        "weight_decay": 0.0005
+      }
+    },
+    "schedulers": [
+      {
+        "type": "CosineAnnealingLR",
+        "parameters": {
+          "T_max": 200
+        }
+      }
+    ],
+    "training": {
+      "max_epochs": 200,
+      "batch_size": 128,
+      "using_amp": true
+    }
+  },
+  "params6": {
     "optimizer": {
       "type": "SGD",
       "parameters": {
@@ -102,25 +145,69 @@
         "weight_decay": 0.0001
       }
     },
-    "scheduler": {
-      "type": "CosineAnnealingLR",
-      "parameters": {
-        "T_max": 200,
-        "eta_min": 0.0001
-      }
-    },
-    "training": {
-      "max_epochs": 200,
-      "using_amp": true,
-      "batch_size": 128,
-      "augmentation": {
-        "random_crop": true,
-        "random_horizontal_flip": true,
-        "cutout": {
-          "n_holes": 1,
-          "length": 16
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.1,
+          "milestones": [60, 75, 90]
         }
       }
+    ],
+    "training": {
+      "max_epochs": 120,
+      "batch_size": 128,
+      "using_amp": true
+    }
+  },
+  "params7": {
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "lr": 0.1,
+        "momentum": 0.9,
+        "weight_decay": 0.0001
+      }
+    },
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.1,
+          "milestones": [100, 150]
+        }
+      }
+    ],
+    "training": {
+      "max_epochs": 200,
+      "batch_size": 128,
+      "using_amp": false
+    }
+  },
+  "params8": {
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "lr": 0.1,
+        "momentum": 0.9,
+        "weight_decay": 0.0001,
+        "nesterov": true
+      }
+    },
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.1,
+          "milestones": [100, 150]
+        }
+      }
+    ],
+    "training": {
+      "max_epochs": 200,
+      "batch_size": 128,
+      "using_amp": false
     }
   }
+  
 }
