@@ -8,14 +8,15 @@ def save_checkpoint(state, is_best, filename):
         torch.save(state, 'model_best.pth.tar')
     print(f"=> Checkpoint saved at '{filename}'")
 
-def load_checkpoint(model, optimizer, scheduler, scaler, filename):
+def load_checkpoint(model, optimizer, schedulers, scaler, filename):
     if os.path.isfile(filename):
         print(f"=> loading checkpoint '{filename}'")
         checkpoint = torch.load(filename)
         start_epoch = checkpoint['epoch']
         model.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
-        scheduler.load_state_dict(checkpoint['scheduler'])
+        for scheduler, state_dict in zip(schedulers, checkpoint['schedulers']):
+            scheduler.load_state_dict(state_dict)
         scaler.load_state_dict(checkpoint['scaler'])
         print(f"=> loaded checkpoint '{filename}' (epoch {checkpoint['epoch']})")
         return start_epoch

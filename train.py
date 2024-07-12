@@ -12,7 +12,7 @@ from sklearn.metrics import f1_score
 
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
 from utils.param_utils import load_params
-from utils.model_utils import initialize_model, get_optimizer, get_scheduler
+from utils.model_utils import initialize_model, get_optimizer, get_schedulers
 from utils.log_utils import log_to_csv, create_log_entry
 
 def main():
@@ -41,6 +41,11 @@ def main():
     while os.path.exists(f"runs/{run_name}") or os.path.exists(f"{run_name}.pth"):
         run_name = f"{run_name_base}_run{run_counter}"
         run_counter += 1
+
+    # If resuming training, use the run name from the checkpoint file or the provided run name
+    if args.resume:
+        # Use the run from args or otherwise use the run name from the checkpoint file
+        run_name = args.run_name or os.path.basename(args.resume).split('_epoch')[0]
 
     print(f"Using run name: {run_name}")
 
@@ -92,7 +97,7 @@ def main():
     criterion = nn.CrossEntropyLoss()
     optimizer = get_optimizer(params, model)
     scaler = amp.GradScaler()
-    scheduler = get_scheduler(params, optimizer)
+    schedulers = get_schedulers(params, optimizer)
 
     # Initialize TensorBoard writer
     writer = SummaryWriter(f"runs/{run_name}")
@@ -127,7 +132,12 @@ def main():
                 writer.add_scalar('training_loss', running_loss / 100, epoch * len(trainloader) + i)
                 running_loss = 0.0
         
-        scheduler.step()
+        # Step the schedulers
+        for scheduler in schedulers:
+            if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(running_loss)
+            else:
+                scheduler.step()
 
         # Calculate metrics
         epoch_loss = running_loss / len(trainloader)
@@ -204,7 +214,7 @@ def main():
     start_epoch = 0
 
     if args.resume:
-        start_epoch = load_checkpoint(model, optimizer, scheduler, scaler, filename=args.resume)
+        start_epoch = load_checkpoint(model, optimizer, schedulers, scaler, filename=args.resume)
 
     for epoch in range(start_epoch, num_epochs):
         train(epoch)
@@ -219,11 +229,11 @@ def main():
                 'epoch': epoch + 1,
                 'state_dict': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
-                'scheduler': scheduler.state_dict(),
+                'schedulers': [scheduler.state_dict() for scheduler in schedulers],
                 'scaler': scaler.state_dict(),
             }, is_best=False, filename=checkpoint_filename)
 
-    model.save(f'{run_name}.pth')
+    model.save(f'./trained_models/{run_name}.pth')
     writer.close()
 
 if __name__ == "__main__":
