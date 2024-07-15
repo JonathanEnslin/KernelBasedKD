@@ -130,7 +130,7 @@
       }
     ],
     "training": {
-      "max_epochs": 200,
+      "max_epochs": 220,
       "batch_size": 128,
       "using_amp": true
     }

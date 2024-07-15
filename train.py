@@ -14,6 +14,7 @@ from utils.checkpoint_utils import save_checkpoint, load_checkpoint
 from utils.param_utils import load_params
 from utils.model_utils import initialize_model, get_optimizer, get_schedulers
 from utils.log_utils import log_to_csv, create_log_entry
+from utils.early_stopping import EarlyStopping  # Import the EarlyStopping class
 
 def main():
     parser = argparse.ArgumentParser(description="Training script for CIFAR-100 with ResNet")
@@ -28,6 +29,8 @@ def main():
     parser.add_argument('--val_size', type=float, default=0.2, help='Proportion of training data used for validation set (0 < val_size < 1)')
     parser.add_argument('--disable_test', action='store_true', help='Disable the test set if validation set is used')
     parser.add_argument('--csv_dir', type=str, default='csv_logs', help='Directory to save CSV logs')
+    parser.add_argument('--early_stopping_patience', type=int, help='Patience for early stopping')
+    parser.add_argument('--early_stopping_start_epoch', type=int, help='Start early stopping after this many epochs')
     args = parser.parse_args()
 
     params = load_params(args.params, args.param_set)
@@ -57,6 +60,24 @@ def main():
 
     csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
     start_time = datetime.now()
+
+    # Print out the configuration
+    config = {
+        "params": params,
+        "run_name": run_name,
+        "checkpoint_dir": args.checkpoint_dir,
+        "checkpoint_freq": args.checkpoint_freq,
+        "use_val": args.use_val,
+        "val_size": args.val_size,
+        "disable_test": args.disable_test,
+        "csv_dir": args.csv_dir,
+        "early_stopping_patience": args.early_stopping_patience,
+        "early_stopping_start_epoch": args.early_stopping_start_epoch,
+        "device": str(device)
+    }
+    print("Configuration:")
+    for key, value in config.items():
+        print(f"{key}: {value}")
 
     # Define transformations for the training, validation, and test sets
     transform_train = transforms.Compose([
@@ -101,6 +122,17 @@ def main():
 
     # Initialize TensorBoard writer
     writer = SummaryWriter(f"runs/{run_name}")
+
+    # Initialize EarlyStopping if validation is used and early stopping params are passed
+    early_stopping = None
+    if args.use_val and (args.early_stopping_patience is not None or args.early_stopping_start_epoch is not None):
+        early_stopping = EarlyStopping(
+            patience=args.early_stopping_patience or 10, 
+            verbose=True, 
+            path=os.path.join(args.checkpoint_dir, f"{run_name}_best.pth"),
+            enabled_after_epoch=args.early_stopping_start_epoch or 10,
+            monitor='loss'
+        )
 
     # Training function
     def train(epoch):
@@ -180,6 +212,14 @@ def main():
         log_entry = create_log_entry(epoch, 'validation', epoch_loss, accuracy, f1, start_time)
         log_to_csv(csv_file, log_entry)
 
+        # Early stopping check
+        if early_stopping:
+            early_stopping(epoch_loss, model)
+            if early_stopping.early_stop:
+                print("Early stopping triggered")
+                return True
+        return False
+
     def test(epoch):
         model.eval()
         running_loss = 0.0
@@ -219,7 +259,8 @@ def main():
     for epoch in range(start_epoch, num_epochs):
         train(epoch)
         if args.use_val:
-            validate(epoch)
+            if validate(epoch):
+                break  # Early stopping triggered, exit training loop
         if not args.use_val or not args.disable_test:
             test(epoch)
 
