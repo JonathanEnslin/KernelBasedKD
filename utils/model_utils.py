@@ -1,15 +1,15 @@
 import torch
 
-def initialize_model(model_name, device):
+def initialize_model(model_name, num_classes, device):
     if model_name == 'resnet20':
         from models.resnet import resnet20
-        model = resnet20().to(device)
+        model = resnet20(num_classes=num_classes).to(device)
     elif model_name == 'resnet56':
         from models.resnet import resnet56
-        model = resnet56().to(device)
+        model = resnet56(num_classes=num_classes).to(device)
     elif model_name == 'resnet110':
         from models.resnet import resnet110
-        model = resnet110().to(device)
+        model = resnet110(num_classes=num_classes).to(device)
     else:
         raise ValueError(f"Unknown model name {model_name}")
     return model

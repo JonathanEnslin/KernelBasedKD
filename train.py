@@ -17,11 +17,11 @@ from utils.log_utils import log_to_csv, create_log_entry
 from utils.early_stopping import EarlyStopping  # Import the EarlyStopping class
 
 def main():
-    parser = argparse.ArgumentParser(description="Training script for CIFAR-100 with ResNet")
+    parser = argparse.ArgumentParser(description="Training script for NN")
     parser.add_argument('--params', type=str, required=True, help='Path to the params.json file')
     parser.add_argument('--param_set', type=str, required=True, help='Name of the parameter set to use')
     parser.add_argument('--resume', type=str, default='', help='Path to the checkpoint file to resume training')
-    parser.add_argument('--model_name', type=str, required=True, help='Model name (resnet20, resnet56, resnet110)')
+    parser.add_argument('--model_name', type=str, required=True, help='Model name (resnet20, resnet56, resnet110...)')
     parser.add_argument('--run_name', type=str, default='', help='Optional run name to overwrite the generated name')
     parser.add_argument('--checkpoint_dir', type=str, default='checkpoints', help='Directory to save checkpoints')
     parser.add_argument('--checkpoint_freq', type=int, default=10, help='Frequency of checkpoint saving in epochs')
@@ -31,6 +31,8 @@ def main():
     parser.add_argument('--csv_dir', type=str, default='csv_logs', help='Directory to save CSV logs')
     parser.add_argument('--early_stopping_patience', type=int, help='Patience for early stopping')
     parser.add_argument('--early_stopping_start_epoch', type=int, help='Start early stopping after this many epochs')
+    parser.add_argument('--dataset_dir', type=str, required=True, help='Directory of the dataset')
+    parser.add_argument('--dataset', type=str, required=True, choices=['CIFAR10', 'CIFAR100'], help='Dataset to use (CIFAR10 or CIFAR100)')
     args = parser.parse_args()
 
     params = load_params(args.params, args.param_set)
@@ -59,7 +61,6 @@ def main():
         os.makedirs(args.csv_dir)
 
     csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
-    start_time = datetime.now()
 
     # Print out the configuration
     config = {
@@ -73,6 +74,8 @@ def main():
         "csv_dir": args.csv_dir,
         "early_stopping_patience": args.early_stopping_patience,
         "early_stopping_start_epoch": args.early_stopping_start_epoch,
+        "dataset_dir": args.dataset_dir,
+        "dataset": args.dataset,
         "device": str(device)
     }
     print("Configuration:")
@@ -80,20 +83,35 @@ def main():
         print(f"{key}: {value}")
 
     # Define transformations for the training, validation, and test sets
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
-    ])
+    if args.dataset == 'CIFAR10':
+        num_classes = 10
+        transform_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        dataset_class = torchvision.datasets.CIFAR10
+    else:  # CIFAR100
+        num_classes = 100
+        transform_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+        ])
+        transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+        ])
+        dataset_class = torchvision.datasets.CIFAR100
 
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
-    ])
-
-    # Load the CIFAR-100 dataset
-    dataset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform_train)
+    # Load the dataset
+    dataset = dataset_class(root=args.dataset_dir, train=True, download=True, transform=transform_train)
     
     if args.use_val:
         val_size = int(args.val_size * len(dataset))
@@ -108,11 +126,14 @@ def main():
         valloader = DataLoader(valset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2, pin_memory=True)
     
     if not args.use_val or not args.disable_test:
-        testset = torchvision.datasets.CIFAR100(root='./data', train=False, download=True, transform=transform_test)
+        testset = dataset_class(root=args.dataset_dir, train=False, download=True, transform=transform_test)
         testloader = DataLoader(testset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2, pin_memory=True)
 
     # Initialize the nn model
-    model = initialize_model(args.model_name, device)
+    model = initialize_model(args.model_name, num_classes=num_classes, device=device)
+
+    # Define the start time for the logger
+    start_time = datetime.now()
 
     # Define the loss function and optimizer
     criterion = nn.CrossEntropyLoss()
