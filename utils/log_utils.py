@@ -20,5 +20,6 @@ def create_log_entry(epoch, phase, loss, accuracy, f1_score, start_time):
         'accuracy': accuracy,
         'f1_score': f1_score,
         'datetime': current_time.strftime("%Y-%m-%d %H:%M:%S"),
-        'elapsed_time': elapsed_time
+        'elapsed_time': elapsed_time,
+        'start_time': start_time.strftime("%Y-%m-%d %H:%M:%S"),
     }
