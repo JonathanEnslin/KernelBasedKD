@@ -8,13 +8,18 @@ import torch.cuda.amp as amp
 import argparse
 import os
 from datetime import datetime
+
 from sklearn.metrics import f1_score
 
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
 from utils.param_utils import load_params
 from utils.model_utils import initialize_model, get_optimizer, get_schedulers
 from utils.log_utils import log_to_csv, create_log_entry
-from utils.early_stopping import EarlyStopping  # Import the EarlyStopping class
+from utils.early_stopping import EarlyStopping
+
+from training_utils.training_step import TrainStep
+from training_utils.validation_step import ValidationStep
+from training_utils.testing_step import TestStep
 
 def main():
     parser = argparse.ArgumentParser(description="Training script for NN")
@@ -31,8 +36,9 @@ def main():
     parser.add_argument('--csv_dir', type=str, default='csv_logs', help='Directory to save CSV logs')
     parser.add_argument('--early_stopping_patience', type=int, help='Patience for early stopping')
     parser.add_argument('--early_stopping_start_epoch', type=int, help='Start early stopping after this many epochs')
-    parser.add_argument('--dataset_dir', type=str, required=True, help='Directory of the dataset')
+    parser.add_argument('--dataset_dir', type=str, default='data', help='Directory of the dataset (default is data)')
     parser.add_argument('--dataset', type=str, required=True, choices=['CIFAR10', 'CIFAR100'], help='Dataset to use (CIFAR10 or CIFAR100)')
+    parser.add_argument('--model_save_dir', type=str, default='trained_models', help='Directory to save trained models')
     args = parser.parse_args()
 
     params = load_params(args.params, args.param_set)
@@ -49,7 +55,6 @@ def main():
 
     # If resuming training, use the run name from the checkpoint file or the provided run name
     if args.resume:
-        # Use the run from args or otherwise use the run name from the checkpoint file
         run_name = args.run_name or os.path.basename(args.resume).split('_epoch')[0]
 
     print(f"Using run name: {run_name}")
@@ -155,135 +160,25 @@ def main():
             monitor='loss'
         )
 
-    # Training function
-    def train(epoch):
-        model.train()
-        running_loss = 0.0
-        all_labels = []
-        all_preds = []
-        for i, (inputs, labels) in enumerate(trainloader):
-            inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
-            
-            optimizer.zero_grad()
-            
-            with amp.autocast():
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-            
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-            
-            running_loss += loss.item()
-            
-            _, predicted = torch.max(outputs, 1)
-            all_labels.extend(labels.cpu().numpy())
-            all_preds.extend(predicted.cpu().numpy())
-            
-            if i % 100 == 99:  # Log every 100 mini-batches
-                print(f'[Epoch {epoch+1}, Batch {i+1}] Loss: {running_loss / 100:.3f}')
-                writer.add_scalar('training_loss', running_loss / 100, epoch * len(trainloader) + i)
-                running_loss = 0.0
-        
-        # Step the schedulers
-        for scheduler in schedulers:
-            if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                scheduler.step(running_loss)
-            else:
-                scheduler.step()
-
-        # Calculate metrics
-        epoch_loss = running_loss / len(trainloader)
-        accuracy = 100 * sum(p == l for p, l in zip(all_preds, all_labels)) / len(all_labels)
-        f1 = f1_score(all_labels, all_preds, average='macro')
-        writer.add_scalar('training_epoch_loss', epoch_loss, epoch)
-        writer.add_scalar('training_accuracy', accuracy, epoch)
-        writer.add_scalar('training_f1_score', f1, epoch)
-
-        log_entry = create_log_entry(epoch, 'train', epoch_loss, accuracy, f1, start_time)
-        log_to_csv(csv_file, log_entry)
-
-    def validate(epoch):
-        model.eval()
-        running_loss = 0.0
-        all_labels = []
-        all_preds = []
-        with torch.no_grad():
-            for inputs, labels in valloader:
-                inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
-                
-                with amp.autocast():
-                    outputs = model(inputs)
-                    loss = criterion(outputs, labels)
-
-                running_loss += loss.item()
-                _, predicted = torch.max(outputs, 1)
-                all_labels.extend(labels.cpu().numpy())
-                all_preds.extend(predicted.cpu().numpy())
-
-        epoch_loss = running_loss / len(valloader)
-        accuracy = 100 * sum(p == l for p, l in zip(all_preds, all_labels)) / len(all_labels)
-        f1 = f1_score(all_labels, all_preds, average='macro')
-        writer.add_scalar('validation_loss', epoch_loss, epoch)
-        writer.add_scalar('validation_accuracy', accuracy, epoch)
-        writer.add_scalar('validation_f1_score', f1, epoch)
-        # print the validation accuracy
-        print(f'--> Validation accuracy: {accuracy:.2f}%')
-
-        log_entry = create_log_entry(epoch, 'validation', epoch_loss, accuracy, f1, start_time)
-        log_to_csv(csv_file, log_entry)
-
-        # Early stopping check
-        if early_stopping:
-            early_stopping(epoch_loss, model)
-            if early_stopping.early_stop:
-                print("Early stopping triggered")
-                return True
-        return False
-
-    def test(epoch):
-        model.eval()
-        running_loss = 0.0
-        all_labels = []
-        all_preds = []
-        with torch.no_grad():
-            for inputs, labels in testloader:
-                inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
-                
-                with amp.autocast():
-                    outputs = model(inputs)
-                    loss = criterion(outputs, labels)
-
-                running_loss += loss.item()
-                _, predicted = torch.max(outputs, 1)
-                all_labels.extend(labels.cpu().numpy())
-                all_preds.extend(predicted.cpu().numpy())
-
-        epoch_loss = running_loss / len(testloader)
-        accuracy = 100 * sum(p == l for p, l in zip(all_preds, all_labels)) / len(all_labels)
-        f1 = f1_score(all_labels, all_preds, average='macro')
-        writer.add_scalar('test_loss', epoch_loss, epoch)
-        writer.add_scalar('test_accuracy', accuracy, epoch)
-        writer.add_scalar('test_f1_score', f1, epoch)
-        # print the test accuracy
-        print(f'--> Test accuracy: {accuracy:.2f}%')
-
-        log_entry = create_log_entry(epoch, 'test', epoch_loss, accuracy, f1, start_time)
-        log_to_csv(csv_file, log_entry)
-
     num_epochs = params['training']['max_epochs']
     start_epoch = 0
 
     if args.resume:
         start_epoch = load_checkpoint(model, optimizer, schedulers, scaler, filename=args.resume)
 
+    train_step = TrainStep(model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time)
+    if args.use_val:
+        validation_step = ValidationStep(model, valloader, criterion, device, writer, csv_file, start_time, early_stopping)
+    if not args.use_val or not args.disable_test:
+        test_step = TestStep(model, testloader, criterion, device, writer, csv_file, start_time)
+
     for epoch in range(start_epoch, num_epochs):
-        train(epoch)
+        train_step(epoch)
         if args.use_val:
-            if validate(epoch):
+            if validation_step(epoch):
                 break  # Early stopping triggered, exit training loop
         if not args.use_val or not args.disable_test:
-            test(epoch)
+            test_step(epoch)
 
         if (epoch + 1) % args.checkpoint_freq == 0:
             checkpoint_filename = os.path.join(args.checkpoint_dir, f"{run_name}_epoch{epoch+1}.pth.tar")
@@ -295,7 +190,7 @@ def main():
                 'scaler': scaler.state_dict(),
             }, is_best=False, filename=checkpoint_filename)
 
-    model.save(f'./trained_models/{run_name}.pth')
+    model.save(f'./{args.model_save_dir}/{run_name}.pth')
     writer.close()
 
 if __name__ == "__main__":
