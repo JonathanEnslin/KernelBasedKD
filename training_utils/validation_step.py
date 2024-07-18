@@ -4,7 +4,7 @@ from sklearn.metrics import f1_score
 from utils.log_utils import create_log_entry, log_to_csv
 
 class ValidationStep:
-    def __init__(self, model, valloader, criterion, device, writer, csv_file, start_time, early_stopping=None):
+    def __init__(self, model, valloader, criterion, device, writer, csv_file, start_time, early_stopping=None, best_model_tracker=None):
         self.model = model
         self.valloader = valloader
         self.criterion = criterion
@@ -13,6 +13,7 @@ class ValidationStep:
         self.csv_file = csv_file
         self.start_time = start_time
         self.early_stopping = early_stopping
+        self.best_model_tracker = best_model_tracker
 
     def __call__(self, epoch):
         self.model.eval()
@@ -41,8 +42,11 @@ class ValidationStep:
         # print the validation accuracy
         print(f'--> Validation accuracy: {accuracy:.2f}%')
 
-        log_entry = create_log_entry(epoch, 'validation', epoch_loss, accuracy, f1, self.start_time)
+        log_entry = create_log_entry(epoch, 'validation', epoch_loss, accuracy, f1, self.start_time, self.device)
         log_to_csv(self.csv_file, log_entry)
+
+        if self.best_model_tracker:
+            self.best_model_tracker(epoch_loss, self.model)
 
         # Early stopping check
         if self.early_stopping:

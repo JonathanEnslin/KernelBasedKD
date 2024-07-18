@@ -40,5 +40,5 @@ class TestStep:
         # print the test accuracy
         print(f'--> Test accuracy: {accuracy:.2f}%')
 
-        log_entry = create_log_entry(epoch, 'test', epoch_loss, accuracy, f1, self.start_time)
+        log_entry = create_log_entry(epoch, 'test', epoch_loss, accuracy, f1, self.start_time, self.device)
         log_to_csv(self.csv_file, log_entry)

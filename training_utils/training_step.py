@@ -60,5 +60,5 @@ class TrainStep:
         self.writer.add_scalar('training_accuracy', accuracy, epoch)
         self.writer.add_scalar('training_f1_score', f1, epoch)
 
-        log_entry = create_log_entry(epoch, 'train', epoch_loss, accuracy, f1, self.start_time)
+        log_entry = create_log_entry(epoch, 'train', epoch_loss, accuracy, f1, self.start_time, self.device)
         log_to_csv(self.csv_file, log_entry)

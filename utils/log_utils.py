@@ -10,7 +10,7 @@ def log_to_csv(file_path, data):
             writer.writeheader()
         writer.writerow(data)
 
-def create_log_entry(epoch, phase, loss, accuracy, f1_score, start_time):
+def create_log_entry(epoch, phase, loss, accuracy, f1_score, start_time, device):
     current_time = datetime.now()
     elapsed_time = (current_time - start_time).total_seconds()
     return {
@@ -22,4 +22,5 @@ def create_log_entry(epoch, phase, loss, accuracy, f1_score, start_time):
         'datetime': current_time.strftime("%Y-%m-%d %H:%M:%S"),
         'elapsed_time': elapsed_time,
         'start_time': start_time.strftime("%Y-%m-%d %H:%M:%S"),
+        'device': device,
     }

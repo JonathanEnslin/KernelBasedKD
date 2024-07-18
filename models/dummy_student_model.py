@@ -13,7 +13,7 @@ class DummyStudentModel(BaseModel):
         self.conv = conv3x3(input_channels, 32) 
         self.bn = nn.BatchNorm2d(32)
         self.relu = nn.ReLU(inplace=True)
-        self.avg_pool = nn.AvgPool2d(28)
+        self.avg_pool = nn.AvgPool2d(30)
         self.fc = nn.Linear(32, num_classes)
     
     def forward(self, x):

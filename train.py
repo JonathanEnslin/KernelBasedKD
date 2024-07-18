@@ -9,17 +9,18 @@ import argparse
 import os
 from datetime import datetime
 
-from sklearn.metrics import f1_score
-
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
 from utils.param_utils import load_params
 from utils.model_utils import initialize_model, get_optimizer, get_schedulers
-from utils.log_utils import log_to_csv, create_log_entry
 from utils.early_stopping import EarlyStopping
+from utils.best_model_tracker import BestModelTracker
+from utils.dataset_getters import get_cifar100_transforms, get_cifar10_transforms
 
 from training_utils.training_step import TrainStep
 from training_utils.validation_step import ValidationStep
 from training_utils.testing_step import TestStep
+
+from models import dummy_student_model, dummy_teacher_model
 
 def main():
     parser = argparse.ArgumentParser(description="Training script for NN")
@@ -39,10 +40,26 @@ def main():
     parser.add_argument('--dataset_dir', type=str, default='data', help='Directory of the dataset (default is data)')
     parser.add_argument('--dataset', type=str, required=True, choices=['CIFAR10', 'CIFAR100'], help='Dataset to use (CIFAR10 or CIFAR100)')
     parser.add_argument('--model_save_dir', type=str, default='trained_models', help='Directory to save trained models')
+    parser.add_argument('--device', type=str, default='cuda', choices=["cpu", "cuda"] , help='Device to use (cpu or cuda)')
+    parser.add_argument('--track_best_after_epoch', type=int, default=10, help='Number of epochs to wait before starting to track the best model (Only enabled when using validation set)')
     args = parser.parse_args()
 
     params = load_params(args.params, args.param_set)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Check that model_save_dir, checkpoint_dir, and csv_dir are valid directories
+    # if they do not exist, create them, if they can not be created print an error message and exit gracefully
+    for directory in [args.model_save_dir, args.checkpoint_dir, args.csv_dir]:
+        if not os.path.exists(directory):
+            try:
+                os.makedirs(directory)
+            except OSError as e:
+                print(f"Error: {directory} could not be created. {e}")
+                exit(1)
+
+
+    # Set the device
+    requested_device = args.device
+    device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
 
     # Generate or use provided run name
     run_name_base = args.run_name or f"{args.model_name}_{args.param_set}"
@@ -57,13 +74,16 @@ def main():
     if args.resume:
         run_name = args.run_name or os.path.basename(args.resume).split('_epoch')[0]
 
+    # if validation set is not used, print that track best and early stopping are disabled (if they are specified)
+    if not args.use_val:
+        if args.early_stopping_patience is not None:
+            print("Warning: Early stopping is disabled because validation set is not used.")
+        elif args.early_stopping_start_epoch is not None:
+            print("Warning: Early stopping is disabled because validation set is not used.")
+        if args.track_best_after_epoch is not None:
+            print("Warning: Best model tracking is disabled because validation set is not used.")
+
     print(f"Using run name: {run_name}")
-
-    if not os.path.exists(args.checkpoint_dir):
-        os.makedirs(args.checkpoint_dir)
-
-    if not os.path.exists(args.csv_dir):
-        os.makedirs(args.csv_dir)
 
     csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
 
@@ -81,7 +101,9 @@ def main():
         "early_stopping_start_epoch": args.early_stopping_start_epoch,
         "dataset_dir": args.dataset_dir,
         "dataset": args.dataset,
-        "device": str(device)
+        "device": str(device),
+        "model_save_dir": args.model_save_dir,
+        "track_best_after_epoch": args.track_best_after_epoch,    
     }
     print("Configuration:")
     for key, value in config.items():
@@ -90,29 +112,11 @@ def main():
     # Define transformations for the training, validation, and test sets
     if args.dataset == 'CIFAR10':
         num_classes = 10
-        transform_train = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
-        transform_test = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
+        transform_train, transform_test = get_cifar10_transforms()
         dataset_class = torchvision.datasets.CIFAR10
     else:  # CIFAR100
         num_classes = 100
-        transform_train = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
-        ])
-        transform_test = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
-        ])
+        transform_train, transform_test = get_cifar100_transforms()
         dataset_class = torchvision.datasets.CIFAR100
 
     # Load the dataset
@@ -136,6 +140,8 @@ def main():
 
     # Initialize the nn model
     model = initialize_model(args.model_name, num_classes=num_classes, device=device)
+    # model = dummy_student_model.DummyStudentModel(3, 100).to(device)
+    # model = dummy_teacher_model.DummyTeacherModel(3, 100).to(device)
 
     # Define the start time for the logger
     start_time = datetime.now()
@@ -155,10 +161,21 @@ def main():
         early_stopping = EarlyStopping(
             patience=args.early_stopping_patience or 10, 
             verbose=True, 
-            path=os.path.join(args.checkpoint_dir, f"{run_name}_best.pth"),
             enabled_after_epoch=args.early_stopping_start_epoch or 10,
             monitor='loss'
         )
+
+    # Initialize BestModelTracker if validation is used
+    best_model_tracker = None
+    if args.use_val:
+        best_model_tracker = BestModelTracker(
+            verbose=True,
+            delta=0,
+            path=os.path.join(args.model_save_dir, f"{run_name}_best.pth"),
+            monitor='loss', # Only loss is currently supported
+            enabled_after_epoch=args.track_best_after_epoch or 10
+        )
+
 
     num_epochs = params['training']['max_epochs']
     start_epoch = 0
@@ -168,14 +185,16 @@ def main():
 
     train_step = TrainStep(model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time)
     if args.use_val:
-        validation_step = ValidationStep(model, valloader, criterion, device, writer, csv_file, start_time, early_stopping)
+        validation_step = ValidationStep(model, valloader, criterion, device, writer, csv_file, start_time, early_stopping, best_model_tracker)
     if not args.use_val or not args.disable_test:
         test_step = TestStep(model, testloader, criterion, device, writer, csv_file, start_time)
 
+    # Main training loop
     for epoch in range(start_epoch, num_epochs):
         train_step(epoch)
         if args.use_val:
-            if validation_step(epoch):
+            early_stop = validation_step(epoch)
+            if early_stop:
                 break  # Early stopping triggered, exit training loop
         if not args.use_val or not args.disable_test:
             test_step(epoch)
