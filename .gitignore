@@ -4,6 +4,7 @@
 *.tar
 *.csv
 *.zip
+/checkpoints
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
