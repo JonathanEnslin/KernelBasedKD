@@ -125,6 +125,7 @@ def main():
     # Load the dataset
     dataset = dataset_class(root=args.dataset_dir, train=True, download=True, transform=transform_train)
     
+    val_split_random_state = None
     if args.use_val:
         if args.use_split_indices_from_file:
             print(f"Using split indices from file: {args.use_split_indices_from_file}")
@@ -219,6 +220,7 @@ def main():
                 'optimizer': optimizer.state_dict(),
                 'schedulers': [scheduler.state_dict() for scheduler in schedulers],
                 'scaler': scaler.state_dict(),
+                'val_split_random_state': val_split_random_state,
             }, is_best=False, filename=checkpoint_filename)
 
     model.save(f'./{args.model_save_dir}/{run_name}.pth')
