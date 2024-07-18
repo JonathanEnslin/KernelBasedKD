@@ -125,7 +125,7 @@ def split_dataset(dataset, test_size, stratify=False, random_state=None, save_to
     train_dataset = Subset(dataset, train_indices)
     test_dataset = Subset(dataset, test_indices)
     
-    return train_dataset, test_dataset
+    return train_dataset, test_dataset, random_state
 
 
 def split_dataset_from_indices(dataset, train_indices, test_indices):
