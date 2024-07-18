@@ -15,6 +15,7 @@ from utils.model_utils import initialize_model, get_optimizer, get_schedulers
 from utils.early_stopping import EarlyStopping
 from utils.best_model_tracker import BestModelTracker
 from utils.dataset_getters import get_cifar100_transforms, get_cifar10_transforms
+import utils.data.dataset_splitter as dataset_splitter
 
 from training_utils.training_step import TrainStep
 from training_utils.validation_step import ValidationStep
@@ -42,6 +43,8 @@ def main():
     parser.add_argument('--model_save_dir', type=str, default='trained_models', help='Directory to save trained models')
     parser.add_argument('--device', type=str, default='cuda', choices=["cpu", "cuda"] , help='Device to use (cpu or cuda)')
     parser.add_argument('--track_best_after_epoch', type=int, default=10, help='Number of epochs to wait before starting to track the best model (Only enabled when using validation set)')
+    parser.add_argument('--val_split_random_state', type=int, default=None, help='Random state for the validation split')
+    parser.add_argument('--use_split_indices_from_file', type=str, default=None, help='Path to a file containing indices for the train and validation split')
     args = parser.parse_args()
 
     params = load_params(args.params, args.param_set)
@@ -62,7 +65,7 @@ def main():
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
 
     # Generate or use provided run name
-    run_name_base = args.run_name or f"{args.model_name}_{args.param_set}"
+    run_name_base = args.run_name or f"{args.model_name}_{args.param_set}_{args.dataset}"
     run_name = run_name_base + "_run1"
     run_counter = 2
 
@@ -123,9 +126,18 @@ def main():
     dataset = dataset_class(root=args.dataset_dir, train=True, download=True, transform=transform_train)
     
     if args.use_val:
-        val_size = int(args.val_size * len(dataset))
-        train_size = len(dataset) - val_size
-        trainset, valset = random_split(dataset, [train_size, val_size])
+        if args.use_split_indices_from_file:
+            print(f"Using split indices from file: {args.use_split_indices_from_file}")
+            train_indices, val_indices, val_split_random_state = dataset_splitter.load_indices(args.use_split_indices_from_file)
+            trainset, valset = dataset_splitter.split_dataset_from_indices(dataset, train_indices, val_indices)
+        else:
+            print(f"Splitting dataset with val_size={args.val_size} and stratify=True")
+            if args.val_split_random_state is not None:
+                print(f"Using random state: {args.val_split_random_state}")
+            indices_file_location = os.path.join(args.checkpoint_dir, f'{run_name}_indices.json')
+            trainset, valset, val_split_random_state = dataset_splitter.split_dataset(
+                dataset, test_size=args.val_size, stratify=True, random_state=args.val_split_random_state, save_to_file=indices_file_location
+                )
     else:
         trainset = dataset
 
