@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -N rst20_cfr10
+#PBS -N rst20_cfr10_3
 #PBS -q serial
 #PBS -l select=1:ncpus=10:mem=16gb
 #PBS -l walltime=24:00:00
@@ -10,7 +10,10 @@
 #PBS -M u19103345@tuks.co.za
 ulimit -s unlimited
 
-echo 'Start of resnet20 training run 3'
+job_index=3
+loop_count=3
+
+echo "Start of resnet20 training run"
 
 cd /mnt/lustre/users/jenslin/cpu_training_1/KernelBasedKD
 
@@ -23,8 +26,26 @@ echo '=============================================='
 pwd -P
 source .CpuTorchEnv/bin/activate
 
-echo '============= Running Python script ============='
-python train.py --run_name resnet20_params3_CIFAR10_run3 --params ./params.json --param_set params3 --model_name resnet20 --use_val --val_size 0.1 --disable_test --early_stopping_patience 15 --early_stopping_start_epoch 90 --dataset CIFAR10 --device cpu --val_split_random_state 112 --track_best_after_epoch 80
-echo '================================================='
+for i in $(seq 1 $loop_count)
+do
+    job_sub_index=$i
+    run_name="resnet20_params3_CIFAR10_job${job_index}_${job_sub_index}"
+    echo "============= Running Python script with run_name ${run_name} ============="
+    python train.py \
+        --run_name ${run_name} \
+        --params ./params.json \
+        --param_set params3 \
+        --model_name resnet20 \
+        --use_val \
+        --val_size 0.1 \
+        --disable_test \
+        --early_stopping_patience 15 \
+        --early_stopping_start_epoch 90 \
+        --dataset CIFAR10 \
+        --device cpu \
+        --val_split_random_state 112 \
+        --track_best_after_epoch 80
+    echo '================================================='
+done
 
-echo 'End of test_job1'
+echo "End of resnet20 training run"

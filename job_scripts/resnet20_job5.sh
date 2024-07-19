@@ -1,16 +1,16 @@
 #!/bin/bash
-#PBS -N rst20_cfr10_4
+#PBS -N rst20_cfr10_5
 #PBS -q serial
 #PBS -l select=1:ncpus=10:mem=16gb
 #PBS -l walltime=24:00:00
-#PBS -o /mnt/lustre/users/jenslin/cpu_training_1/KernelBasedKD/job_out/run4.out
-#PBS -e /mnt/lustre/users/jenslin/cpu_training_1/KernelBasedKD/job_out/run4.err
+#PBS -o /mnt/lustre/users/jenslin/cpu_training_1/KernelBasedKD/job_out/run5.out
+#PBS -e /mnt/lustre/users/jenslin/cpu_training_1/KernelBasedKD/job_out/run5.err
 #PBS -P CSCI1166
 #PBS -m abe
 #PBS -M u19103345@tuks.co.za
 ulimit -s unlimited
 
-job_index=4
+job_index=5
 loop_count=3
 
 echo "Start of resnet20 training run"
