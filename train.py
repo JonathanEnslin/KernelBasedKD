@@ -72,6 +72,8 @@ def main():
         while os.path.exists(f"runs/{args.dataset}/{run_name}") or os.path.exists(f"{run_name}.pth"):
             run_name = f"{run_name_base}_run{run_counter}"
             run_counter += 1
+    else:
+        run_name = run_name_base
 
     # If resuming training, use the run name from the checkpoint file or the provided run name
     if args.resume:
