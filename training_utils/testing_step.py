@@ -22,7 +22,11 @@ class TestStep:
             for inputs, labels in self.testloader:
                 inputs, labels = inputs.to(self.device, non_blocking=True), labels.to(self.device, non_blocking=True)
                 
-                with amp.autocast():
+                if torch.cuda.is_available():
+                    with amp.autocast():
+                        outputs = self.model(inputs)
+                        loss = self.criterion(outputs, labels)
+                else:
                     outputs = self.model(inputs)
                     loss = self.criterion(outputs, labels)
 

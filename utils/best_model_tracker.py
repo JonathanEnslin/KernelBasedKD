@@ -21,7 +21,7 @@ class BestModelTracker:
         """
         self.verbose = verbose
         self.best_score = None
-        self.val_metric_min = np.Inf if monitor == 'loss' else -np.Inf
+        self.val_metric_min = np.inf if monitor == 'loss' else -np.inf
         self.delta = delta
         self.path = path
         self.trace_func = trace_func

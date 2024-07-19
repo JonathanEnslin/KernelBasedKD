@@ -10,6 +10,12 @@ def initialize_model(model_name, num_classes, device):
     elif model_name == 'resnet110':
         from models.resnet import resnet110
         model = resnet110(num_classes=num_classes).to(device)
+    elif model_name == 'dummy_student':
+        from models.dummy_student_model import DummyStudentModel
+        model = DummyStudentModel(3, 100).to(device)
+    elif model_name == 'dummy_teacher':
+        from models.dummy_teacher_model import DummyTeacherModel
+        model = DummyTeacherModel(3, 100).to(device)
     else:
         raise ValueError(f"Unknown model name {model_name}")
     return model

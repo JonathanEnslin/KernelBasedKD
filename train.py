@@ -21,8 +21,6 @@ from training_utils.training_step import TrainStep
 from training_utils.validation_step import ValidationStep
 from training_utils.testing_step import TestStep
 
-from models import dummy_student_model, dummy_teacher_model
-
 def main():
     parser = argparse.ArgumentParser(description="Training script for NN")
     parser.add_argument('--params', type=str, required=True, help='Path to the params.json file')
@@ -63,6 +61,7 @@ def main():
     # Set the device
     requested_device = args.device
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
+    print(device)
 
     # Generate or use provided run name
     run_name_base = args.run_name or f"{args.model_name}_{args.param_set}_{args.dataset}"
@@ -153,8 +152,6 @@ def main():
 
     # Initialize the nn model
     model = initialize_model(args.model_name, num_classes=num_classes, device=device)
-    # model = dummy_student_model.DummyStudentModel(3, 100).to(device)
-    # model = dummy_teacher_model.DummyTeacherModel(3, 100).to(device)
 
     # Define the start time for the logger
     start_time = datetime.now()
