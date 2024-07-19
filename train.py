@@ -43,7 +43,7 @@ def main():
     parser.add_argument('--track_best_after_epoch', type=int, default=10, help='Number of epochs to wait before starting to track the best model (Only enabled when using validation set)')
     parser.add_argument('--val_split_random_state', type=int, default=None, help='Random state for the validation split')
     parser.add_argument('--use_split_indices_from_file', type=str, default=None, help='Path to a file containing indices for the train and validation split')
-    parser.add_argument('--disable_auto_run_indexing', type=bool, default=False, help='Disable automatic run indexing (i.e. _run1, _run2, etc.)')
+    parser.add_argument('--disable_auto_run_indexing', action='store_true', help='Disable automatic run indexing (i.e. _run1, _run2, etc.)')
     args = parser.parse_args()
 
     params = load_params(args.params, args.param_set)
