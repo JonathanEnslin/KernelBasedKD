@@ -43,6 +43,7 @@ def main():
     parser.add_argument('--track_best_after_epoch', type=int, default=10, help='Number of epochs to wait before starting to track the best model (Only enabled when using validation set)')
     parser.add_argument('--val_split_random_state', type=int, default=None, help='Random state for the validation split')
     parser.add_argument('--use_split_indices_from_file', type=str, default=None, help='Path to a file containing indices for the train and validation split')
+    parser.add_argument('--disable_auto_run_indexing', type=bool, default=False, help='Disable automatic run indexing (i.e. _run1, _run2, etc.)')
     args = parser.parse_args()
 
     params = load_params(args.params, args.param_set)
@@ -65,12 +66,12 @@ def main():
 
     # Generate or use provided run name
     run_name_base = args.run_name or f"{args.model_name}_{args.param_set}_{args.dataset}"
-    run_name = run_name_base + "_run1"
-    run_counter = 2
-
-    while os.path.exists(f"runs/{run_name}") or os.path.exists(f"{run_name}.pth"):
-        run_name = f"{run_name_base}_run{run_counter}"
-        run_counter += 1
+    if not args.disable_auto_run_indexing:
+        run_name = run_name_base + "_run1"
+        run_counter = 2
+        while os.path.exists(f"runs/{args.dataset}/{run_name}") or os.path.exists(f"{run_name}.pth"):
+            run_name = f"{run_name_base}_run{run_counter}"
+            run_counter += 1
 
     # If resuming training, use the run name from the checkpoint file or the provided run name
     if args.resume:
@@ -163,7 +164,7 @@ def main():
     schedulers = get_schedulers(params, optimizer)
 
     # Initialize TensorBoard writer
-    writer = SummaryWriter(f"runs/{run_name}")
+    writer = SummaryWriter(f"runs/{args.dataset}/{run_name}")
 
     # Initialize EarlyStopping if validation is used and early stopping params are passed
     early_stopping = None
