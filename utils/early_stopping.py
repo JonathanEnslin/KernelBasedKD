@@ -23,7 +23,7 @@ class EarlyStopping:
         self.counter = 0
         self.best_score = None
         self.early_stop = False
-        self.val_metric_min = np.Inf if monitor == 'loss' else -np.Inf
+        self.val_metric_min = np.inf if monitor == 'loss' else -np.inf
         self.delta = delta
         self.trace_func = trace_func
         self.monitor = monitor
