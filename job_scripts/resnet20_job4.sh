@@ -12,7 +12,7 @@ ulimit -s unlimited
 
 echo 'Start of resnet20 training run 4'
 
-cd /mnt/lustre/users/jenslin/firsttest/KernelBasedKD
+cd /mnt/lustre/users/jenslin/cpu_training_1/KernelBasedKD
 
 module load chpc/python/anaconda/3-2021.11
 
