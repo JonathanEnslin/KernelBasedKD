@@ -54,7 +54,7 @@ class ValidationStep:
 
         # Early stopping check
         if self.early_stopping:
-            self.early_stopping(epoch_loss, self.model)
+            self.early_stopping(epoch_loss)
             if self.early_stopping.early_stop:
                 print("Early stopping triggered")
                 return True

@@ -2,7 +2,7 @@
 setlocal
 
 :: Define the parameters for each run
-set "PARAMS1=--params ./params.json --param_set params3 --model_name resnet56 --use_val --val_size 0.1 --disable_test --early_stopping_patience 15 --early_stopping_start_epoch 90" 
+set "PARAMS1=--params ./params.json --param_set params3 --model_name resnet56 --use_val --val_size 0.1 --disable_test --early_stopping_patience 15 --early_stopping_start_epoch 90 --dataset CIFAR100" 
 set "PARAMS2=--params ./params.json --param_set params5 --model_name resnet56 --use_val --val_size 0.1 --disable_test --early_stopping_patience 15 --early_stopping_start_epoch 210"
 set "PARAMS3=--params ./params.json --param_set params6 --model_name resnet56 --use_val --val_size 0.1 --disable_test --early_stopping_patience 15 --early_stopping_start_epoch 90"
 set "PARAMS4=--params ./params.json --param_set params8 --model_name resnet56 --use_val --val_size 0.1 --disable_test --early_stopping_patience 15 --early_stopping_start_epoch 150"
