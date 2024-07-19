@@ -1,2 +1,2 @@
 # KernelBasedKD
-Experimentation code for knowledge distillation from the weight kernels of a CNN
+Experimentation code (in the works) for knowledge distillation from the weight kernels of a CNN
