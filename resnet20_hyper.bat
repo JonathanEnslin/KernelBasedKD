@@ -2,7 +2,7 @@
 setlocal
 
 :: Define the parameters for each run
-set "PARAMS1=--params ./params.json --run_name testtest --device cpu --param_set params3 --model_name dummy_student --use_val --val_size 0.1 --disable_test --dataset CIFAR100"
+set "PARAMS1=--params ./params.json --run_name testtest --device cuda --param_set params3 --model_name dummy_student --use_val --val_size 0.1 --disable_test --dataset CIFAR100"
 set "PARAMS2=--params ./params.json --param_set params6 --model_name resnet20 --use_val --val_size 0.1 --disable_test"
 set "PARAMS3=--params ./params.json --param_set params7 --model_name resnet20 --use_val --val_size 0.1 --disable_test"
 set "PARAMS4=--params ./params.json --param_set params8 --model_name resnet20 --use_val --val_size 0.1 --disable_test"
