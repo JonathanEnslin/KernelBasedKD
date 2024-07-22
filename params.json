@@ -62,6 +62,10 @@
     }
   },
   "params3": {
+    "notes": {
+      "source": "Enhancing batch normalized convolutional networks using displaced rectifier linear units: A systematic comparative study",
+      "url": "http://dx.doi.org/10.1016/j.eswa.2019.01.066"
+    },
     "optimizer": {
       "type": "SGD",
       "parameters": {
