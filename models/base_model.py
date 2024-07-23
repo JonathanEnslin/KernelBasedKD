@@ -34,6 +34,12 @@ class BaseModel(nn.Module):
         return probs_with_temperature
     
 
+    def generate_logits(self, images):
+        self.eval()
+        with torch.no_grad():
+            logits = self(images)
+        return logits
+
     def _feature_map_hook_fn(self, module, input, output):
         with torch.no_grad():
             cnn_out = output.detach()
