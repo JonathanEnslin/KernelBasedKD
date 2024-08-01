@@ -5,7 +5,9 @@
 *.csv
 *.zip
 /checkpoints
-
+/trained_models
+/csv_logs
+/OldTrained
 # Temporarily ignoring the AT folder
 /AT
 
