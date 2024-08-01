@@ -6,6 +6,9 @@
 *.zip
 /checkpoints
 
+# Temporarily ignoring the AT folder
+/AT
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
