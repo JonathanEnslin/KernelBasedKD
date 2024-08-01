@@ -15,6 +15,7 @@ from utils.model_utils import initialize_model, get_optimizer, get_schedulers
 from utils.early_stopping import EarlyStopping
 from utils.best_model_tracker import BestModelTracker
 from utils.dataset_getters import get_cifar100_transforms, get_cifar10_transforms
+import utils.config_utils as config_utils
 import utils.data.dataset_splitter as dataset_splitter
 
 from training_utils.training_step import TrainStep
@@ -64,20 +65,8 @@ def main():
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
     print(device)
 
-    # Generate or use provided run name
-    run_name_base = args.run_name or f"{args.model_name}_{args.param_set}_{args.dataset}"
-    if not args.disable_auto_run_indexing:
-        run_name = run_name_base + "_run1"
-        run_counter = 2
-        while os.path.exists(f"runs/{args.dataset}/{run_name}") or os.path.exists(f"{run_name}.pth"):
-            run_name = f"{run_name_base}_run{run_counter}"
-            run_counter += 1
-    else:
-        run_name = run_name_base
-
-    # If resuming training, use the run name from the checkpoint file or the provided run name
-    if args.resume:
-        run_name = args.run_name or os.path.basename(args.resume).split('_epoch')[0]
+    # Get the run name
+    run_name = config_utils.get_run_name(args)
 
     # if validation set is not used, print that track best and early stopping are disabled (if they are specified)
     if not args.use_val:
@@ -92,27 +81,7 @@ def main():
 
     csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
 
-    # Print out the configuration
-    config = {
-        "params": params,
-        "run_name": run_name,
-        "checkpoint_dir": args.checkpoint_dir,
-        "checkpoint_freq": args.checkpoint_freq,
-        "use_val": args.use_val,
-        "val_size": args.val_size,
-        "disable_test": args.disable_test,
-        "csv_dir": args.csv_dir,
-        "early_stopping_patience": args.early_stopping_patience,
-        "early_stopping_start_epoch": args.early_stopping_start_epoch,
-        "dataset_dir": args.dataset_dir,
-        "dataset": args.dataset,
-        "device": str(device),
-        "model_save_dir": args.model_save_dir,
-        "track_best_after_epoch": args.track_best_after_epoch,    
-    }
-    print("Configuration:")
-    for key, value in config.items():
-        print(f"{key}: {value}")
+    config_utils.print_config(params, run_name, args, device, printer=print)
 
     # Define transformations for the training, validation, and test sets
     if args.dataset == 'CIFAR10':
