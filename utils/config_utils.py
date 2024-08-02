@@ -51,9 +51,9 @@ def print_config(params, run_name, args, device, printer=print):
 
 
 def get_data_loaders(args, params, dataset, run_name, transform_train, transform_test, dataset_class):
-    train_loader = None
-    val_loader = None
-    test_loader = None
+    trainloader = None
+    valloader = None
+    testloader = None
 
     val_split_random_state = None
     if args.use_val:

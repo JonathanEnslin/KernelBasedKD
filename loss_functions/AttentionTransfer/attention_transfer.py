@@ -5,6 +5,8 @@ and
 https://github.com/szagoruyko/attention-transfer
 and
 https://github.com/AlexandrosFerles/NIPS_2019_Reproducibilty_Challenge_Zero-shot_Knowledge_Transfer_via_Adversarial_Belief_Matching/blob/master/src/PyTorch/utils.py
+and
+https://github.com/AberHu/Knowledge-Distillation-Zoo/blob/master/kd_losses/at.py
 '''
 
 import torch
