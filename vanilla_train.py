@@ -25,6 +25,15 @@ from training_utils.testing_step import TestStep
 from loss_functions.VanillaKD.vanilla import VanillaKDLoss
 from models.resnet import resnet56
 
+
+def fmt_duration(duration):
+    hours = duration // 3600
+    minutes = (duration % 3600) // 60
+    seconds = duration % 60
+    ms = (duration - int(duration)) * 1000
+    return f"{int(hours)}h {int(minutes)}m {int(seconds)}s {int(ms)}ms"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Training script for NN")
     parser.add_argument('--params', type=str, required=True, help='Path to the params.json file')
@@ -32,17 +41,17 @@ def main():
     parser.add_argument('--resume', type=str, default='', help='Path to the checkpoint file to resume training')
     parser.add_argument('--model_name', type=str, required=True, help='Model name (resnet20, resnet56, resnet110...)')
     parser.add_argument('--run_name', type=str, default='', help='Optional run name to overwrite the generated name')
-    parser.add_argument('--checkpoint_dir', type=str, default='checkpoints', help='Directory to save checkpoints')
+    parser.add_argument('--checkpoint_dir', type=str, default='run_data/checkpoints', help='Directory to save checkpoints')
     parser.add_argument('--checkpoint_freq', type=int, default=10, help='Frequency of checkpoint saving in epochs')
     parser.add_argument('--use_val', action='store_true', help='Use a validation set')
     parser.add_argument('--val_size', type=float, default=0.2, help='Proportion of training data used for validation set (0 < val_size < 1)')
     parser.add_argument('--disable_test', action='store_true', help='Disable the test set if validation set is used')
-    parser.add_argument('--csv_dir', type=str, default='csv_logs', help='Directory to save CSV logs')
+    parser.add_argument('--csv_dir', type=str, default='run_data/csv_logs', help='Directory to save CSV logs')
     parser.add_argument('--early_stopping_patience', type=int, help='Patience for early stopping')
     parser.add_argument('--early_stopping_start_epoch', type=int, help='Start early stopping after this many epochs')
     parser.add_argument('--dataset_dir', type=str, default='data', help='Directory of the dataset (default is data)')
     parser.add_argument('--dataset', type=str, required=True, choices=['CIFAR10', 'CIFAR100'], help='Dataset to use (CIFAR10 or CIFAR100)')
-    parser.add_argument('--model_save_dir', type=str, default='trained_models', help='Directory to save trained models')
+    parser.add_argument('--model_save_dir', type=str, default='run_data/trained_models', help='Directory to save trained models')
     parser.add_argument('--device', type=str, default='cuda', choices=["cpu", "cuda"] , help='Device to use (cpu or cuda)')
     parser.add_argument('--track_best_after_epoch', type=int, default=10, help='Number of epochs to wait before starting to track the best model (Only enabled when using validation set)')
     parser.add_argument('--val_split_random_state', type=int, default=None, help='Random state for the validation split')
@@ -57,7 +66,7 @@ def main():
     for directory in [args.model_save_dir, args.checkpoint_dir, args.csv_dir]:
         if not os.path.exists(directory):
             try:
-                os.makedirs(directory)
+                os.makedirs(directory, exist_ok=True)
             except OSError as e:
                 print(f"Error: {directory} could not be created. {e}")
                 exit(1)
@@ -114,9 +123,11 @@ def main():
     print("Loading teacher model")
     teacher = resnet56(num_classes=100)
     teacher.load(teacher_path, device=device)
+    teacher.to(device)
     print("Teacher model loaded")
 
-    criterion = VanillaKDLoss(alpha=0.9, temperature=4, teacher=resnet56)
+    criterion = VanillaKDLoss(alpha=0.9, temperature=4, teacher=teacher)
+    test_val_criterion = nn.CrossEntropyLoss()
 
     # Define the optimizer and learning rate scheduler
     optimizer = get_optimizer(params, model)
@@ -154,14 +165,20 @@ def main():
     if args.resume:
         start_epoch = load_checkpoint(model, optimizer, schedulers, scaler, filename=args.resume)
 
-    train_step = TrainStep(model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time)
+    train_step = TrainStep(model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, is_kd=True)
     if args.use_val:
-        validation_step = ValidationStep(model, valloader, criterion, device, writer, csv_file, start_time, early_stopping, best_model_tracker)
+        validation_step = ValidationStep(model, valloader, test_val_criterion, device, writer, csv_file, start_time, early_stopping, best_model_tracker)
+        # validation_step = ValidationStep(model, valloader, criterion, device, writer, csv_file, start_time, early_stopping, best_model_tracker)
     if not args.use_val or not args.disable_test:
-        test_step = TestStep(model, testloader, criterion, device, writer, csv_file, start_time)
+        test_step = TestStep(model, testloader, test_val_criterion, device, writer, csv_file, start_time)
+        # test_step = TestStep(model, testloader, criterion, device, writer, csv_file, start_time)
 
     # Main training loop
+    times_at_epoch_end = []
+    start_time = datetime.now()
+    prev_time = start_time
     for epoch in range(start_epoch, num_epochs):
+        epoch_start_time = datetime.now()
         train_step(epoch)
         if args.use_val:
             early_stop = validation_step(epoch)
@@ -170,6 +187,14 @@ def main():
         if not args.use_val or not args.disable_test:
             test_step(epoch)
 
+        curr_time = datetime.now()
+        times_at_epoch_end.append(curr_time - prev_time)
+        avg_time_per_epoch = sum([dur.total_seconds() for dur in times_at_epoch_end[-20:]]) / len(times_at_epoch_end[-20:])
+        prev_time = curr_time
+
+        print(f"Epoch {epoch+1} took {fmt_duration((curr_time - epoch_start_time).total_seconds())}, Total time: {fmt_duration((curr_time - start_time).total_seconds())}")
+        print(f"Average time per epoch: {fmt_duration(avg_time_per_epoch)}")
+        print(f"Estimated time remaining: {fmt_duration(avg_time_per_epoch * (num_epochs - epoch - 1))}")
         if (epoch + 1) % args.checkpoint_freq == 0:
             checkpoint_filename = os.path.join(args.checkpoint_dir, f"{run_name}_epoch{epoch+1}.pth.tar")
             save_checkpoint({
@@ -181,8 +206,14 @@ def main():
                 'val_split_random_state': val_split_random_state,
             }, is_best=False, filename=checkpoint_filename)
 
+        
+
     model.save(f'./{args.model_save_dir}/{run_name}.pth')
     writer.close()
 
 if __name__ == "__main__":
     main()
+
+
+
+

@@ -4,7 +4,7 @@ from sklearn.metrics import f1_score
 from utils.log_utils import create_log_entry, log_to_csv
 
 class TrainStep:
-    def __init__(self, model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time):
+    def __init__(self, model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, is_kd=False):
         self.model = model
         self.trainloader = trainloader
         self.criterion = criterion
@@ -15,6 +15,7 @@ class TrainStep:
         self.writer = writer
         self.csv_file = csv_file
         self.start_time = start_time
+        self.is_kd = is_kd
 
     def __call__(self, epoch):
         self.model.train()
@@ -26,13 +27,13 @@ class TrainStep:
             inputs, labels = inputs.to(self.device, non_blocking=True), labels.to(self.device, non_blocking=True)
             
             self.optimizer.zero_grad()
-            if torch.cuda.is_available():
-                with amp.autocast():
-                    outputs = self.model(inputs)
-                    loss = self.criterion(outputs, labels)
-            else:
+
+            with amp.autocast():
                 outputs = self.model(inputs)
-                loss = self.criterion(outputs, labels)
+                if self.is_kd:
+                    loss = self.criterion(outputs, labels, features=inputs)
+                else:
+                    loss = self.criterion(outputs, labels), outputs
             
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)

@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python Debugger: Current File with Arguments",
+      "name": "Python Debugger: train.py",
       "type": "debugpy",
       "request": "launch",
       "program": "C:/Users/jonat/OneDrive/UNIV stuff/CS4/COS700/Dev/KernelBasedKD/train.py",
@@ -14,6 +14,25 @@
         "--model_name", "resnet110",
         "--dataset", "CIFAR100",
         "--device", "cuda",
+        "--disable_auto_run_indexing"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    },
+    {
+      "name": "Python Debugger: vanilla_train.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "C:/Users/jonat/OneDrive/UNIV stuff/CS4/COS700/Dev/KernelBasedKD/vanilla_train.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--device", "cuda",
+        "--params", "params.json",
+        "--param_set", "params3",
+        "--model_name", "resnet20",
+        "--run_name", "vanilla_kd_test_1",
+        "--dataset", "CIFAR100",
         "--disable_auto_run_indexing"
       ],
       "env": {

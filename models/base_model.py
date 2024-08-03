@@ -37,9 +37,11 @@ class BaseModel(nn.Module):
     def generate_logits(self, images):
         self.eval()
         with torch.no_grad():
-            logits = self(images)
+            with torch.cuda.amp.autocast():
+                logits = self(images)
         return logits
-
+    
+    
     def _feature_map_hook_fn(self, module, input, output):
         with torch.no_grad():
             cnn_out = output.detach()

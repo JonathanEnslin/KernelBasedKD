@@ -35,7 +35,7 @@ class VanillaKDLoss(nn.Module):
                 raise ValueError("Teacher model is not provided")
             if features is None:
                 raise ValueError("Features are not provided")
-            teacher_logits = self.teacher(features)
+            teacher_logits = self.teacher(features)            
 
         soft_log_probs = F.log_softmax(student_logits / self.temperature, dim=1)
         soft_targets = F.softmax(teacher_logits / self.temperature, dim=1)

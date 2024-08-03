@@ -9,6 +9,7 @@
 /csv_logs
 /OldTrained
 /teacher_models
+/run_data
 
 # Temporarily ignoring the AT folder
 /AT
