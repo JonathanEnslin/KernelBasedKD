@@ -12,9 +12,9 @@ from datetime import datetime
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
 from utils.param_utils import load_params
 from utils.model_utils import initialize_model, get_optimizer, get_schedulers
-from utils.early_stopping import EarlyStopping
+from training_utils.early_stopping import EarlyStopping
 from utils.best_model_tracker import BestModelTracker
-from utils.dataset_getters import get_cifar100_transforms, get_cifar10_transforms
+from utils.data.dataset_getters import get_cifar100_transforms, get_cifar10_transforms
 import utils.config_utils as config_utils
 import utils.data.dataset_splitter as dataset_splitter
 
