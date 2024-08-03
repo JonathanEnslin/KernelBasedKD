@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class VanillaKDLoss(nn.Module):
-    def __init__(self, alpha=0.1, temperature=20, teacher=None):
+    def __init__(self, alpha=0.1, temperature=20, teacher=None, cached_teacher_logits=None):
         """
         Initializes the VanillaKDLoss module.
         
@@ -16,8 +16,9 @@ class VanillaKDLoss(nn.Module):
         self.alpha = alpha
         self.temperature = temperature
         self.teacher = teacher
+        self.cached_teacher_logits = cached_teacher_logits
 
-    def forward(self, student_logits, labels, teacher_logits=None, features=None):
+    def forward(self, student_logits, labels, teacher_logits=None, features=None, indices=None):
         """
         Forward pass for computing the KD loss.
 
@@ -30,12 +31,16 @@ class VanillaKDLoss(nn.Module):
         Returns:
         - loss (torch.Tensor): Combined KD and cross-entropy loss.
         """
-        if teacher_logits is None:
+        if teacher_logits is None and (self.cached_teacher_logits is None or indices is None):
             if self.teacher is None:
                 raise ValueError("Teacher model is not provided")
             if features is None:
                 raise ValueError("Features are not provided")
             teacher_logits = self.teacher(features)            
+        elif teacher_logits is None and indices is not None and self.cached_teacher_logits is not None:
+            teacher_logits = self.cached_teacher_logits[indices]
+        else:
+            raise ValueError("Teacher logits or (indices and cached logits are not provided")
 
         soft_log_probs = F.log_softmax(student_logits / self.temperature, dim=1)
         soft_targets = F.softmax(teacher_logits / self.temperature, dim=1)

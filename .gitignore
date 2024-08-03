@@ -10,6 +10,7 @@
 /OldTrained
 /teacher_models
 /run_data
+/teacher_logits
 
 # Temporarily ignoring the AT folder
 /AT

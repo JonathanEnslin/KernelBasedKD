@@ -31,9 +31,8 @@
         "--params", "params.json",
         "--param_set", "params3",
         "--model_name", "resnet20",
-        "--run_name", "vanilla_kd_test_1",
+        "--run_name", "debug",
         "--dataset", "CIFAR100",
-        "--disable_auto_run_indexing"
       ],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"

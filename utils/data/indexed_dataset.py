@@ -17,7 +17,7 @@ class IndexedCIFAR10(torchvision.datasets.CIFAR10):
     def __getitem__(self, index):
         img, target = super().__getitem__(index)
         return img, target, index
-    
+
 
 if __name__ == "__main__":
     import torch

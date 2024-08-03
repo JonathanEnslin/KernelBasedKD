@@ -23,7 +23,7 @@ class TrainStep:
         all_labels = []
         all_preds = []
         top5_correct = 0
-        for i, (inputs, labels) in enumerate(self.trainloader):
+        for i, (inputs, labels, indices) in enumerate(self.trainloader):
             inputs, labels = inputs.to(self.device, non_blocking=True), labels.to(self.device, non_blocking=True)
             
             self.optimizer.zero_grad()
@@ -31,7 +31,7 @@ class TrainStep:
             with amp.autocast():
                 outputs = self.model(inputs)
                 if self.is_kd:
-                    loss = self.criterion(outputs, labels, features=inputs)
+                    loss = self.criterion(outputs, labels, features=inputs, indices=indices)
                 else:
                     loss = self.criterion(outputs, labels), outputs
             

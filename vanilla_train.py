@@ -24,7 +24,7 @@ from training_utils.testing_step import TestStep
 
 from loss_functions.VanillaKD.vanilla import VanillaKDLoss
 from models.resnet import resnet56
-
+from utils.data.indexed_dataset import IndexedCIFAR10, IndexedCIFAR100
 
 def fmt_duration(duration):
     hours = duration // 3600
@@ -99,17 +99,18 @@ def main():
     if args.dataset == 'CIFAR10':
         num_classes = 10
         transform_train, transform_test = get_cifar10_transforms()
-        dataset_class = torchvision.datasets.CIFAR10
+        dataset_class = IndexedCIFAR10
+        dataset_class = IndexedCIFAR10
     else:  # CIFAR100
         num_classes = 100
         transform_train, transform_test = get_cifar100_transforms()
-        dataset_class = torchvision.datasets.CIFAR100
+        dataset_class = IndexedCIFAR100
 
     # Load the dataset
-    dataset = dataset_class(root=args.dataset_dir, train=True, download=True, transform=transform_train)
+    train_dataset = dataset_class(root=args.dataset_dir, train=True, download=True, transform=transform_train)
 
     trainloader, valloader, testloader, val_split_random_state \
-            = config_utils.get_data_loaders(args, params, dataset, run_name, transform_train, transform_test, dataset_class)
+            = config_utils.get_data_loaders(args, params, train_dataset, run_name, transform_train, transform_test, dataset_class)
 
     # Initialize the nn model
     model = initialize_model(args.model_name, num_classes=num_classes, device=device)
@@ -118,15 +119,62 @@ def main():
     start_time = datetime.now()
 
     # Define the loss function
-    teacher_path = 'teacher_models/ResNet56/resnet56_params3_CIFAR100_1_00025.pth'
+    teacher_folder = 'teacher_models'
+    teacher_subfolder = 'ResNet56'
+    teacher_file_name = 'resnet56_params3_CIFAR100_1_00025.pth'
+    teacher_path = f'{teacher_folder}/{teacher_subfolder}/{teacher_file_name}'
+    logits_folder = f'teacher_logits'
+    logits_subfolder = 'ResNet56'
+    logits_filename = f'{teacher_file_name}.pt'
+    logits_path = f'{logits_folder}/{logits_subfolder}/{logits_filename}'
+    print(f"Teacher path: {teacher_path}")
+    print(f"Logits path: {logits_path}")
+
+
     # load the teacher model
     print("Loading teacher model")
     teacher = resnet56(num_classes=100)
     teacher.load(teacher_path, device=device)
     teacher.to(device)
     print("Teacher model loaded")
+    
+    # create the directory for the teacher logits if it does not exist
+    if not os.path.exists(f"{logits_folder}/{logits_subfolder}"):
+        os.makedirs(f"{logits_folder}/{logits_subfolder}", exist_ok=True)
 
-    criterion = VanillaKDLoss(alpha=0.9, temperature=4, teacher=teacher)
+    # If the logits file does not exist, generate the teacher logits
+    if not os.path.exists(logits_path):
+        print("Teacher logits file does not exist. Generating teacher logits")
+
+        print("Generating teacher logits for caching")
+        teacher.eval()
+        teacher_logits = [None for _ in range(len(train_dataset))]
+        teacher_labels = [None for _ in range(len(train_dataset))]
+
+        for i, (inputs, labels, indices) in enumerate(trainloader):
+            if i % 4 == 0:
+                print(f"Batch {i+1}/{len(trainloader)}")
+            inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
+            with torch.no_grad():
+                outputs = teacher(inputs)
+            for j, idx in enumerate(indices):
+                teacher_logits[idx] = outputs[j]
+                teacher_labels[idx] = labels[j]
+
+        teacher_logits = torch.stack(teacher_logits)
+        teacher_logits.to(device)
+
+        # save the teacher logits to a file logits_filename
+        torch.save((teacher_logits, teacher_labels), logits_path)
+        print("Teacher logits generated and saved")
+    else:
+        print("Teacher logits file already exists. Loading teacher logits")
+        teacher_logits, teacher_labels = torch.load(logits_path)
+        teacher_logits.to(device)
+        print("Teacher logits loaded")
+        print(teacher_logits.shape)
+
+    criterion = VanillaKDLoss(alpha=0.9, temperature=4, teacher=teacher, cached_teacher_logits=teacher_logits)
     test_val_criterion = nn.CrossEntropyLoss()
 
     # Define the optimizer and learning rate scheduler

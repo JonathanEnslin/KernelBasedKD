@@ -20,7 +20,7 @@ class TestStep:
         all_preds = []
         top5_correct = 0
         with torch.no_grad():
-            for inputs, labels in self.testloader:
+            for inputs, labels, _ in self.testloader:
                 inputs, labels = inputs.to(self.device, non_blocking=True), labels.to(self.device, non_blocking=True)
                 
                 if torch.cuda.is_available():
