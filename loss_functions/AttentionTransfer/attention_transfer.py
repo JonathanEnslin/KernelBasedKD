@@ -188,6 +188,7 @@ class ATLoss(nn.Module):
         at_teacher = self._generate_attention_maps_flattened_paper(teacher_feature_map)
         return torch.norm(at_student - at_teacher, dim=1).sum()
 
+
     def _compute_at_loss_paper_normalized_maps(self, student_feature_map, teacher_feature_map, eps=1e-6):
         at_student = self._generate_attention_maps_flattened_paper(student_feature_map)
         at_teacher = self._generate_attention_maps_flattened_paper(teacher_feature_map)
@@ -202,21 +203,26 @@ class ATLoss(nn.Module):
         at_teacher = self._generate_attention_map_zoo(teacher_feature_map)
         return F.mse_loss(at_student, at_teacher)
 
+
     def _get_teacher_feature_maps_cached(self, indices, features):
         teacher_feature_maps = [self.cached_teacher_maps[i] for i in indices]
         tfmap_batch_groups = list(zip(*teacher_feature_maps))
         teacher_feature_maps = [torch.stack(group).to(self.device) for group in tfmap_batch_groups]
         return teacher_feature_maps
-    
+
+
     def _get_teacher_feature_maps_not_cached(self, indices, features):
         self.teacher.generate_logits(features)
         return self.non_cached_feature_map_getter(self.teacher)
 
+
     def _get_non_cached_pre_activation_fmaps(self, model: BaseModel):
         return model.get_layer_group_preactivation_feature_maps()
 
+
     def _get_non_cached_post_activation_fmaps(self, model: BaseModel):
         return model.get_layer_group_output_feature_maps()
+
 
     @staticmethod
     def get_group_boundary_indices(model_type):
