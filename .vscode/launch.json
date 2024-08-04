@@ -42,7 +42,7 @@
       "name": "Python Debugger: at_train.py",
       "type": "debugpy",
       "request": "launch",
-      "program": "C:/Users/jonat/OneDrive/UNIV stuff/CS4/COS700/Dev/KernelBasedKD/at_train.py",
+      "program": "C:/Users/jonat/OneDrive/UNIV stuff/CS4/COS700/Dev/KernelBasedKD/at_train copy.py",
       "console": "integratedTerminal",
       "args": [
         "--device", "cuda",
