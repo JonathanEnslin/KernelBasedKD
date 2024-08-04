@@ -158,12 +158,12 @@ class ATLoss(nn.Module):
         return student_loss + at_loss # beta alread factored in above
     
 
-    def _generate_attention_maps_flattened(self, feature_map):
-        return F.normalize(feature_map.pow(2).mean(1).flatten(1))
+    def _generate_attention_maps_flattened(self, feature_map, eps=1e-6):
+        return F.normalize(feature_map.pow(2).mean(1).flatten(1), eps=eps)
     
 
-    def _generate_attention_maps_flattened_paper(self, feature_map):
-        return F.normalize(feature_map.pow(2).sum(1).flatten(1))
+    def _generate_attention_maps_flattened_paper(self, feature_map, eps=1e-6):
+        return F.normalize(feature_map.pow(2).sum(1).flatten(1), eps=eps)
     
 
     def _generate_attention_map_zoo(self, feature_map, eps=1e-6):
@@ -188,12 +188,12 @@ class ATLoss(nn.Module):
         at_teacher = self._generate_attention_maps_flattened_paper(teacher_feature_map)
         return torch.norm(at_student - at_teacher, dim=1).sum()
 
-    def _compute_at_loss_paper_normalized_maps(self, student_feature_map, teacher_feature_map):
+    def _compute_at_loss_paper_normalized_maps(self, student_feature_map, teacher_feature_map, eps=1e-6):
         at_student = self._generate_attention_maps_flattened_paper(student_feature_map)
         at_teacher = self._generate_attention_maps_flattened_paper(teacher_feature_map)
         # normalise attention maps
-        at_student = F.normalize(at_student, dim=1)
-        at_teacher = F.normalize(at_teacher, dim=1)
+        at_student = F.normalize(at_student, dim=1, eps=eps)
+        at_teacher = F.normalize(at_teacher, dim=1, eps=eps)
         return torch.norm(at_student - at_teacher, dim=1).sum()
 
 
