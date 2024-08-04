@@ -37,6 +37,25 @@
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       }
+    },
+    {
+      "name": "Python Debugger: at_train.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "C:/Users/jonat/OneDrive/UNIV stuff/CS4/COS700/Dev/KernelBasedKD/at_train.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--device", "cuda",
+        "--params", "params.json",
+        "--param_set", "params3",
+        "--model_name", "resnet20",
+        "--run_name", "debug_at",
+        "--dataset", "CIFAR100",
+        "--at_mode", "paper"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
     }
   ]
 }

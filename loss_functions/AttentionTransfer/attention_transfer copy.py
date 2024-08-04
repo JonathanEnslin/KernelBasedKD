@@ -74,8 +74,11 @@ class ATLoss(nn.Module):
         elif mode == 'zoo':
             self.at_map_generator = self._generate_attention_map_zoo
             self.loss_computer = self._compute_at_loss_zoo
+        elif mode == 'paper_strict':
+            self.at_map_generator = self._generate_attention_maps_flattened_paper
+            self.loss_computer = self._compute_at_loss_paper_normalized_maps
         else:
-            raise ValueError("Invalid mode, must be in ['impl', 'paper', 'zoo']")
+            raise ValueError("Invalid mode, must be in ['impl', 'paper', 'zoo', 'paper_strict']")
         
 
     def forward(self, student_logits, labels, features=None, indices=None):
@@ -116,6 +119,8 @@ class ATLoss(nn.Module):
                 loss_component = loss_component * self.beta
             elif self.mode == 'zoo':
                 loss_component = loss_component * self.beta
+            elif self.mode == 'paper_strict':
+                loss_component = loss_component * self.beta
                 
             at_loss += loss_component
             
@@ -154,6 +159,14 @@ class ATLoss(nn.Module):
     def _compute_at_loss_paper(self, student_feature_map, teacher_feature_map):
         at_student = self._generate_attention_maps_flattened_paper(student_feature_map)
         at_teacher = self._generate_attention_maps_flattened_paper(teacher_feature_map)
+        return torch.norm(at_student - at_teacher, dim=1).sum()
+
+    def _compute_at_loss_paper_normalized_maps(self, student_feature_map, teacher_feature_map):
+        at_student = self._generate_attention_maps_flattened_paper(student_feature_map)
+        at_teacher = self._generate_attention_maps_flattened_paper(teacher_feature_map)
+        # normalise attention maps
+        at_student = F.normalize(at_student, dim=1)
+        at_teacher = F.normalize(at_teacher, dim=1)
         return torch.norm(at_student - at_teacher, dim=1).sum()
 
 

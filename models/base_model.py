@@ -11,6 +11,9 @@ class BaseModel(nn.Module):
     def __init__(self):
         super(BaseModel, self).__init__()
         self.feature_maps = []
+        self.layer_group_output_feature_maps = []
+        self.layer_group_preactivation_feature_maps = []
+        self.layer_group_post_bn_feature_maps = []
         
 
     def predict(self, dataloader, device="cpu"):
@@ -41,6 +44,19 @@ class BaseModel(nn.Module):
                 logits = self(images)
         return logits
     
+
+    def get_all_conv_layers(self):
+        model = self
+        conv_layers = []
+        def recursive_find_conv_layers(module):
+            for name, layer in module.named_children():
+                if isinstance(layer, nn.Conv2d):
+                    conv_layers.append(layer)
+                elif len(list(layer.children())) > 0:
+                    recursive_find_conv_layers(layer)
+        recursive_find_conv_layers(model)
+        return conv_layers
+
     
     def _feature_map_hook_fn(self, module, input, output):
         with torch.no_grad():
@@ -48,6 +64,19 @@ class BaseModel(nn.Module):
             self.feature_maps.append(cnn_out.cpu())
             del cnn_out
     
+    def _group_preactivation_hook_fn(self, module, input, output):
+        with torch.no_grad():
+            cnn_out = output.detach()
+            self.layer_group_preactivation_feature_maps.append(cnn_out)
+            # self.layer_group_preactivation_feature_maps.append(cnn_out.cpu())
+            del cnn_out # make sure this doesnt cause issues if i dont explicitly send to cpu
+
+    def _group_post_bn_hook_fn(self, module, input, output):
+        with torch.no_grad():
+            cnn_out = output.detach()
+            self.layer_group_post_bn_feature_maps.append(cnn_out)
+            # self.layer_group_postdownsample_feature_maps.append(cnn_out.cpu())
+            del cnn_out
 
     def get_feature_maps(self):
         return self.feature_maps
