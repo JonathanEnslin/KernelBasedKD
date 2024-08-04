@@ -142,11 +142,15 @@ def main():
     logits_path = f'{logits_folder}/{logits_subfolder}/{logits_filename}'
     fetaure_maps_folder = 'teacher_feature_maps'
     feature_maps_subfolder = 'ResNet56'
-    feature_maps_filename = f'{teacher_file_name}.pt'
+    pre_activation_feature_maps_filename = f'pre_activation_{teacher_file_name}.pt'
+    layer_group_output_feature_maps_filename = f'layer_group_output_{teacher_file_name}.pt'
+    pre_activation_feature_maps_path = f'{fetaure_maps_folder}/{feature_maps_subfolder}/{pre_activation_feature_maps_filename}'
+    layer_group_output_feature_maps_path = f'{fetaure_maps_folder}/{feature_maps_subfolder}/{layer_group_output_feature_maps_filename}'
 
     print(f"Teacher path: {teacher_path}")
     print(f"Logits path: {logits_path}")
-
+    print(f"Pre-activation feature maps path: {pre_activation_feature_maps_path}")
+    print(f"Layer group output feature maps path: {layer_group_output_feature_maps_path}")
 
     # load the teacher model
     print("Loading teacher model")
@@ -159,14 +163,23 @@ def main():
     if not os.path.exists(f"{logits_folder}/{logits_subfolder}"):
         os.makedirs(f"{logits_folder}/{logits_subfolder}", exist_ok=True)
 
+    # create the directory for the teacher feature maps if it does not exist
+    if not os.path.exists(f"{fetaure_maps_folder}/{feature_maps_subfolder}"):
+        os.makedirs(f"{fetaure_maps_folder}/{feature_maps_subfolder}", exist_ok=True)
+
     # If the logits file does not exist, generate the teacher logits
-    if not os.path.exists(logits_path) or not os.path.isfile(logits_path):
+    if not os.path.exists(logits_path) \
+            or not os.path.exists(pre_activation_feature_maps_path) or not os.path.exists(layer_group_output_feature_maps_path):
         print("Teacher logits file does not exist. Generating teacher logits")
+        # Set state to not deplete gpy memory
+        teacher.set_hook_device_state("cpu")
 
         print("Generating teacher logits for caching")
         teacher.eval()
         teacher_logits = [None for _ in range(len(train_dataset))]
         teacher_labels = [None for _ in range(len(train_dataset))]
+        teacher_pre_activation_feature_maps = [None for _ in range(len(train_dataset))]
+        teacher_layer_group_output_feature_maps = [None for _ in range(len(train_dataset))]
 
         for i, (inputs, labels, indices) in enumerate(trainloader):
             if i % 4 == 0:
@@ -174,22 +187,41 @@ def main():
             inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
             with torch.no_grad():
                 outputs = teacher(inputs)
+                pre_activation_fmaps_for_batch = teacher.get_layer_group_preactivation_feature_maps()
+                layer_group_output_fmaps_for_batch = teacher.get_layer_group_output_feature_maps()
+                
+
+            print(len(pre_activation_fmaps_for_batch))
+            print(len(layer_group_output_fmaps_for_batch))
+            print(teacher.feature_maps[0].shape)
             for j, idx in enumerate(indices):
                 teacher_logits[idx] = outputs[j]
                 teacher_labels[idx] = labels[j]
+
+                teacher_pre_activation_feature_maps[idx] = [fmap[j] for fmap in pre_activation_fmaps_for_batch]
+                teacher_layer_group_output_feature_maps[idx] = [fmap[j] for fmap in layer_group_output_fmaps_for_batch]
 
         teacher_logits = torch.stack(teacher_logits)
         teacher_logits.to(device)
 
         # save the teacher logits to a file logits_filename
         torch.save((teacher_logits, teacher_labels), logits_path)
+        torch.save(teacher_pre_activation_feature_maps, pre_activation_feature_maps_path)
+        torch.save(teacher_layer_group_output_feature_maps, layer_group_output_feature_maps_path)
         print("Teacher logits generated and saved")
+        quit()
     else:
-        print("Teacher logits file already exists. Loading teacher logits")
+        print("Teacher logits and feature map files already exists. Loading...")
         teacher_logits, teacher_labels = torch.load(logits_path)
         teacher_logits.to(device)
-        print("Teacher logits loaded")
+        teacher_pre_activation_feature_maps = torch.load(pre_activation_feature_maps_path)
+        teacher_layer_group_output_feature_maps = torch.load(layer_group_output_feature_maps_path)
+
+        print("Teacher logits and feature maps loaded")
         print(teacher_logits.shape)
+        print(len(teacher_pre_activation_feature_maps), len(teacher_pre_activation_feature_maps[0]), teacher_pre_activation_feature_maps[0][0].shape)
+        print(len(teacher_layer_group_output_feature_maps), len(teacher_layer_group_output_feature_maps[0]), teacher_layer_group_output_feature_maps[0][0].shape)
+
 
     #     teacher_folder = 'teacher_models'
     # teacher_subfolder = 'ResNet56'
@@ -206,10 +238,18 @@ def main():
     teacher_layer_indices = ATLoss.get_group_boundary_indices('resnet56')
     layer_index_pairs = list(zip(student_layer_indices, teacher_layer_indices))
     criterion = ATLoss(student=model,
-                       teacher=teacher,
-                       layer_index_pairs=layer_index_pairs,
-                       beta=at_beta, mode=args.at_mode)
+                        teacher=teacher,
+                        beta=at_beta, mode=args.at_mode, device=device,
+                        cached_post_activation_fmaps=teacher_layer_group_output_feature_maps,
+                        cached_pre_activation_fmaps=teacher_pre_activation_feature_maps,
+                        use_post_activation=None)
     test_val_criterion = nn.CrossEntropyLoss()
+    del teacher_layer_group_output_feature_maps
+    del teacher_pre_activation_feature_maps
+
+    teacher.set_hook_device_state(args.device if torch.cuda.is_available() else "cpu")
+    model.set_hook_device_state(args.device if torch.cuda.is_available() else "cpu")
+
 
     # Define the optimizer and learning rate scheduler
     optimizer = get_optimizer(params, model)

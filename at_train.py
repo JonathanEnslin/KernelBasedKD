@@ -193,7 +193,6 @@ def main():
     layer_index_pairs = list(zip(student_layer_indices, teacher_layer_indices))
     criterion = ATLoss(student=model,
                        teacher=teacher,
-                       layer_index_pairs=layer_index_pairs,
                        beta=at_beta, mode=args.at_mode)
     test_val_criterion = nn.CrossEntropyLoss()
 
