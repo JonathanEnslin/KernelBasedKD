@@ -176,6 +176,8 @@ def main():
 
     criterion = VanillaKDLoss(alpha=0.9, temperature=4, teacher=teacher, cached_teacher_logits=teacher_logits)
     test_val_criterion = nn.CrossEntropyLoss()
+    teacher.set_hook_device_state("same")
+    model.set_hook_device_state("same")
 
     # Define the optimizer and learning rate scheduler
     optimizer = get_optimizer(params, model)
