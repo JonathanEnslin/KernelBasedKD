@@ -147,21 +147,24 @@ class ResNet(BaseModel):
         for i in range(1, blocks):
             layers.append(block(self.inplanes, planes))
 
-        return nn.Sequential(*layers)
+        # register hook to last conv layer of last block and last bn layer of last block
+        layers[-1].conv2.register_forward_hook(self._group_preactivation_hook_fn)
+
+        full_layer = nn.Sequential(*layers)
+        # register hook
+        full_layer.register_forward_hook(self._group_output_hook_fn)
+        return full_layer
 
     def forward(self, x):
-        self.feature_maps = []
-        self.layer_group_output_feature_maps = []
+        self._clear_feature_maps_lists()
+
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)    # 32x32
 
         x = self.layer1(x)  # 32x32
-        self.layer_group_output_feature_maps.append(x.detach())
         x = self.layer2(x)  # 16x16
-        self.layer_group_output_feature_maps.append(x.detach())
         x = self.layer3(x)  # 8x8
-        self.layer_group_output_feature_maps.append(x.detach())
 
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
