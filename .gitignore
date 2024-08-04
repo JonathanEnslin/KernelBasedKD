@@ -11,6 +11,7 @@
 /teacher_models
 /run_data
 /teacher_logits
+/teacher_feature_maps
 
 # Temporarily ignoring the AT folder
 /AT
