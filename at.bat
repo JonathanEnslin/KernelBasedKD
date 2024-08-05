@@ -14,7 +14,7 @@ set RUN_COUNT=2
 :: Run the training script with each set of parameters
 for /L %%j in (1,1,%RUN_COUNT%) do (
     echo Running training run 1, iteration %%j with parameters: %PARAMS1%
-    ~\anaconda3\envs\COS700-ML-1\python.exe ".\at_train copy.py" %PARAMS1%
+    C:\Users\jonat\anaconda3\envs\COS700-ML-1\python.exe at_train.py %PARAMS1%
     if %ERRORLEVEL% neq 0 (
         echo Training run 1, iteration %%j failed.
         exit /b %ERRORLEVEL%
@@ -23,7 +23,7 @@ for /L %%j in (1,1,%RUN_COUNT%) do (
 
 for /L %%j in (1,1,%RUN_COUNT%) do (
     echo Running training run 2, iteration %%j with parameters: %PARAMS2%
-    ~\anaconda3\envs\COS700-ML-1\python.exe ".\at_train copy.py" %PARAMS2%
+    C:\Users\jonat\anaconda3\envs\COS700-ML-1\python.exe at_train.py %PARAMS2%
     if %ERRORLEVEL% neq 0 (
         echo Training run 2, iteration %%j failed.
         exit /b %ERRORLEVEL%
@@ -32,7 +32,7 @@ for /L %%j in (1,1,%RUN_COUNT%) do (
 
 for /L %%j in (1,1,%RUN_COUNT%) do (
     echo Running training run 3, iteration %%j with parameters: %PARAMS3%
-    ~\anaconda3\envs\COS700-ML-1\python.exe ".\at_train copy.py" %PARAMS3%
+    C:\Users\jonat\anaconda3\envs\COS700-ML-1\python.exe at_train.py %PARAMS3%
     if %ERRORLEVEL% neq 0 (
         echo Training run 3, iteration %%j failed.
         exit /b %ERRORLEVEL%
@@ -41,7 +41,7 @@ for /L %%j in (1,1,%RUN_COUNT%) do (
 
 for /L %%j in (1,1,%RUN_COUNT%) do (
     echo Running training run 4, iteration %%j with parameters: %PARAMS4%
-    ~\anaconda3\envs\COS700-ML-1\python.exe ".\at_train copy.py" %PARAMS4%
+    C:\Users\jonat\anaconda3\envs\COS700-ML-1\python.exe at_train.py %PARAMS4%
     if %ERRORLEVEL% neq 0 (
         echo Training run 4, iteration %%j failed.
         exit /b %ERRORLEVEL%
@@ -50,7 +50,7 @@ for /L %%j in (1,1,%RUN_COUNT%) do (
 
 for /L %%j in (1,1,%RUN_COUNT%) do (
     echo Running training run 5, iteration %%j with parameters: %PARAMS5%
-    ~\anaconda3\envs\COS700-ML-1\python.exe ".\at_train copy.py" %PARAMS5%
+    C:\Users\jonat\anaconda3\envs\COS700-ML-1\python.exe at_train.py %PARAMS5%
     if %ERRORLEVEL% neq 0 (
         echo Training run 5, iteration %%j failed.
         exit /b %ERRORLEVEL%

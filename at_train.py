@@ -124,6 +124,7 @@ def main():
 
     teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps = \
           teacher_model_handler.generate_and_save_teacher_logits_and_feature_maps(trainloader=trainloader, train_dataset=train_dataset)
+    del teacher_model_handler # to release references so that memory can be cleared up later
     logger("Teacher model setup completed.")    
     logger("")
 
