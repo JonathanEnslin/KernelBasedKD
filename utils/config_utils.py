@@ -8,7 +8,7 @@ def get_run_name(args):
     if not args.disable_auto_run_indexing:
         run_name = run_name_base + "_run1"
         run_counter = 2
-        while os.path.exists(f"runs/{args.dataset}/{run_name}") or os.path.exists(f"{run_name}.pth"):
+        while os.path.exists(os.path.join(args.csv_dir, f"{run_name}_metrics.csv")):
             run_name = f"{run_name_base}_run{run_counter}"
             run_counter += 1
     else:

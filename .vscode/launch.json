@@ -8,13 +8,12 @@
       "program": "C:/Users/jonat/OneDrive/UNIV stuff/CS4/COS700/Dev/KernelBasedKD/train.py",
       "console": "integratedTerminal",
       "args": [
-        "--run_name", "resnet110_acc_test",
+        "--run_name", "teacher56_base_model",
         "--params", "./params.json",
         "--param_set", "params3",
-        "--model_name", "resnet110",
+        "--model_name", "resnet56",
         "--dataset", "CIFAR100",
         "--device", "cuda",
-        "--disable_auto_run_indexing"
       ],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
