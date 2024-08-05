@@ -42,7 +42,7 @@
       "name": "Python Debugger: at_train.py",
       "type": "debugpy",
       "request": "launch",
-      "program": "C:/Users/jonat/OneDrive/UNIV stuff/CS4/COS700/Dev/KernelBasedKD/at_train copy.py",
+      "program": "C:/Users/jonat/OneDrive/UNIV stuff/CS4/COS700/Dev/KernelBasedKD/at_train.py",
       "console": "integratedTerminal",
       "args": [
         "--device", "cuda",
@@ -51,7 +51,9 @@
         "--model_name", "resnet20",
         "--run_name", "debug_at",
         "--dataset", "CIFAR100",
-        "--at_mode", "paper"
+        "--at_mode", "zoo",
+        "--at_beta", "10.0",
+        "--disable_auto_run_indexing"
       ],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"

@@ -33,7 +33,7 @@ class TrainStep:
                 if self.is_kd:
                     loss = self.criterion(outputs, labels, features=inputs, indices=indices)
                 else:
-                    loss = self.criterion(outputs, labels), outputs
+                    loss = self.criterion(outputs, labels)
             
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)

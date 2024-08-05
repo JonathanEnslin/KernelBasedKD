@@ -150,7 +150,8 @@ def main():
     schedulers = get_schedulers(params, optimizer)
 
     # Initialize TensorBoard writer
-    writer = SummaryWriter(f"runs/AT/{args.dataset}/{run_name}")
+    writer_name = config_utils.get_writer_name(kd_mode="AT", args=args, run_name=run_name)
+    writer = SummaryWriter(writer_name)
 
     # Define the start time for the logger
     start_time = datetime.now()

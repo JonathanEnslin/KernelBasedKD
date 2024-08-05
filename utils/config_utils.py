@@ -82,3 +82,11 @@ def get_data_loaders(args, params, dataset, run_name, transform_train, transform
         testloader = DataLoader(testset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2, pin_memory=True)
     
     return trainloader, valloader, testloader, val_split_random_state
+
+
+def get_writer_name(kd_mode, args, run_name):
+    if kd_mode is not None or kd_mode != "":
+        return f"runs/{kd_mode}/{args.dataset}/{run_name}"
+    else:
+        return f"runs/{args.dataset}/{run_name}"
+        
