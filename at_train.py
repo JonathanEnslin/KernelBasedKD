@@ -1,8 +1,5 @@
 import torch
 import torch.nn as nn
-import torchvision
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 import torch.cuda.amp as amp
 import argparse
@@ -10,13 +7,13 @@ import os
 from datetime import datetime
 
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
+import utils.miscellaneous
 from utils.param_utils import load_params
 from utils.model_utils import initialize_model, get_optimizer, get_schedulers
 from training_utils.early_stopping import EarlyStopping
 from utils.best_model_tracker import BestModelTracker
-from utils.data.dataset_getters import get_cifar100_transforms, get_cifar10_transforms
+from utils.data.dataset_getters import get_cifar100_transforms, get_cifar10_transforms, get_dataset_info
 import utils.config_utils as config_utils
-import utils.data.dataset_splitter as dataset_splitter
 
 from training_utils.training_step import TrainStep
 from training_utils.validation_step import ValidationStep
@@ -25,6 +22,10 @@ from training_utils.testing_step import TestStep
 from loss_functions.AttentionTransfer.attention_transfer import ATLoss
 from models.resnet import resnet56
 from utils.data.indexed_dataset import IndexedCIFAR10, IndexedCIFAR100
+from utils.teacher.teacher_model_handler import TeacherModelHandler
+
+
+import utils
 
 def fmt_duration(duration):
     hours = duration // 3600
@@ -58,37 +59,24 @@ def main():
     parser.add_argument('--use_split_indices_from_file', type=str, default=None, help='Path to a file containing indices for the train and validation split')
     parser.add_argument('--disable_auto_run_indexing', action='store_true', help='Disable automatic run indexing (i.e. _run1, _run2, etc.)')
     parser.add_argument('--at_mode', type=str, default='impl', choices=['impl', 'paper', 'zoo'], help='Mode for attention transfer loss')
-    parser.add_argument('--at_beta', type=float, default=None, help='Beta parameter for attention transfer loss, default None means will be inferred automatically based on mode')
+    parser.add_argument('--at_beta', type=float, default=1.0, help='Beta parameter for attention transfer loss, default None means will be inferred automatically based on mode')
     args = parser.parse_args()
 
-    params = load_params(args.params, args.param_set)
+    # Initialise logger
+    logger = print
 
-    at_beta = None
-    if not args.at_beta:
-        if args.at_mode == 'impl':
-            at_beta = 0.04
-        elif args.at_mode == 'paper':
-            at_beta = 1e3
-        elif args.at_mode == 'zoo':
-            at_beta = 0.1
-    else:
-        at_beta = params.at_beta
+    # Load the training parameters
+    params = load_params(args.params, args.param_set)
 
     # Check that model_save_dir, checkpoint_dir, and csv_dir are valid directories
     # if they do not exist, create them, if they can not be created print an error message and exit gracefully
-    for directory in [args.model_save_dir, args.checkpoint_dir, args.csv_dir]:
-        if not os.path.exists(directory):
-            try:
-                os.makedirs(directory, exist_ok=True)
-            except OSError as e:
-                print(f"Error: {directory} could not be created. {e}")
-                exit(1)
-
+    if not utils.miscellaneous.ensure_dir_existence([args.model_save_dir, args.checkpoint_dir, args.csv_dir]):
+        exit(1)
 
     # Set the device
     requested_device = args.device
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
-    print(device)
+    logger(device)
 
     # Get the run name
     run_name = config_utils.get_run_name(args)
@@ -96,28 +84,22 @@ def main():
     # if validation set is not used, print that track best and early stopping are disabled (if they are specified)
     if not args.use_val:
         if args.early_stopping_patience is not None:
-            print("Warning: Early stopping is disabled because validation set is not used.")
+            logger("Warning: Early stopping is disabled because validation set is not used.")
         elif args.early_stopping_start_epoch is not None:
-            print("Warning: Early stopping is disabled because validation set is not used.")
+            logger("Warning: Early stopping is disabled because validation set is not used.")
         if args.track_best_after_epoch is not None:
-            print("Warning: Best model tracking is disabled because validation set is not used.")
+            logger("Warning: Best model tracking is disabled because validation set is not used.")
 
-    print(f"Using run name: {run_name}")
+    logger(f"-------> Using run name: {run_name}")
 
     csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
 
     config_utils.print_config(params, run_name, args, device, printer=print)
 
-    # Define transformations for the training, validation, and test sets
-    if args.dataset == 'CIFAR10':
-        num_classes = 10
-        transform_train, transform_test = get_cifar10_transforms()
-        dataset_class = IndexedCIFAR10
-        dataset_class = IndexedCIFAR10
-    else:  # CIFAR100
-        num_classes = 100
-        transform_train, transform_test = get_cifar100_transforms()
-        dataset_class = IndexedCIFAR100
+    # Get the dataset info
+    dataset_class, num_classes, transform_train, transform_test = get_dataset_info(args.dataset)
+    if dataset_class is None:
+        exit(1)
 
     # Load the dataset
     train_dataset = dataset_class(root=args.dataset_dir, train=True, download=True, transform=transform_train)
@@ -128,128 +110,38 @@ def main():
     # Initialize the nn model
     model = initialize_model(args.model_name, num_classes=num_classes, device=device)
 
-    # Define the start time for the logger
-    start_time = datetime.now()
-
-    # Define the loss function
-    teacher_folder = 'teacher_models'
-    teacher_subfolder = 'ResNet56'
-    teacher_file_name = 'resnet56_params3_CIFAR100_1_00025.pth'
-    teacher_path = f'{teacher_folder}/{teacher_subfolder}/{teacher_file_name}'
-    logits_folder = f'teacher_logits'
-    logits_subfolder = 'ResNet56'
-    logits_filename = f'{teacher_file_name}.pt'
-    logits_path = f'{logits_folder}/{logits_subfolder}/{logits_filename}'
-    fetaure_maps_folder = 'teacher_feature_maps'
-    feature_maps_subfolder = 'ResNet56'
-    pre_activation_feature_maps_filename = f'pre_activation_{teacher_file_name}.pt'
-    layer_group_output_feature_maps_filename = f'layer_group_output_{teacher_file_name}.pt'
-    pre_activation_feature_maps_path = f'{fetaure_maps_folder}/{feature_maps_subfolder}/{pre_activation_feature_maps_filename}'
-    layer_group_output_feature_maps_path = f'{fetaure_maps_folder}/{feature_maps_subfolder}/{layer_group_output_feature_maps_filename}'
-
-    print(f"Teacher path: {teacher_path}")
-    print(f"Logits path: {logits_path}")
-    print(f"Pre-activation feature maps path: {pre_activation_feature_maps_path}")
-    print(f"Layer group output feature maps path: {layer_group_output_feature_maps_path}")
-
-    # load the teacher model
-    print("Loading teacher model")
-    teacher = resnet56(num_classes=100)
-    teacher.load(teacher_path, device=device)
-    teacher.to(device)
-    print("Teacher model loaded")
+    # Load and cache teacher model data
+    logger("Setting up teacher model")
+    teacher_model_handler = TeacherModelHandler(model_class=resnet56,
+                                                teacher_file_name="resnet56_params3_CIFAR100_1_00025.pth",
+                                                device=device,
+                                                num_classes=num_classes,
+                                                printer=print)
     
-    # create the directory for the teacher logits if it does not exist
-    if not os.path.exists(f"{logits_folder}/{logits_subfolder}"):
-        os.makedirs(f"{logits_folder}/{logits_subfolder}", exist_ok=True)
+    teacher = teacher_model_handler.load_teacher_model()
+    if teacher is None:
+        exit(1)
 
-    # create the directory for the teacher feature maps if it does not exist
-    if not os.path.exists(f"{fetaure_maps_folder}/{feature_maps_subfolder}"):
-        os.makedirs(f"{fetaure_maps_folder}/{feature_maps_subfolder}", exist_ok=True)
+    teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps = \
+          teacher_model_handler.generate_and_save_teacher_logits_and_feature_maps(trainloader=trainloader, train_dataset=train_dataset)
+    logger("Teacher model setup completed.")    
+    logger("")
 
-    # If the logits file does not exist, generate the teacher logits
-    if not os.path.exists(logits_path) \
-            or not os.path.exists(pre_activation_feature_maps_path) or not os.path.exists(layer_group_output_feature_maps_path):
-        print("Teacher logits file does not exist. Generating teacher logits")
-        # Set state to not deplete gpy memory
-        teacher.set_hook_device_state("cpu")
-
-        print("Generating teacher logits for caching")
-        teacher.eval()
-        teacher_logits = [None for _ in range(len(train_dataset))]
-        teacher_labels = [None for _ in range(len(train_dataset))]
-        teacher_pre_activation_feature_maps = [None for _ in range(len(train_dataset))]
-        teacher_layer_group_output_feature_maps = [None for _ in range(len(train_dataset))]
-
-        for i, (inputs, labels, indices) in enumerate(trainloader):
-            if i % 4 == 0:
-                print(f"Batch {i+1}/{len(trainloader)}")
-            inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
-            with torch.no_grad():
-                outputs = teacher(inputs)
-                pre_activation_fmaps_for_batch = teacher.get_layer_group_preactivation_feature_maps()
-                layer_group_output_fmaps_for_batch = teacher.get_layer_group_output_feature_maps()
-                
-
-            print(len(pre_activation_fmaps_for_batch))
-            print(len(layer_group_output_fmaps_for_batch))
-            print(teacher.feature_maps[0].shape)
-            for j, idx in enumerate(indices):
-                teacher_logits[idx] = outputs[j]
-                teacher_labels[idx] = labels[j]
-
-                teacher_pre_activation_feature_maps[idx] = [fmap[j] for fmap in pre_activation_fmaps_for_batch]
-                teacher_layer_group_output_feature_maps[idx] = [fmap[j] for fmap in layer_group_output_fmaps_for_batch]
-
-        teacher_logits = torch.stack(teacher_logits)
-        teacher_logits.to(device)
-
-        # save the teacher logits to a file logits_filename
-        torch.save((teacher_logits, teacher_labels), logits_path)
-        torch.save(teacher_pre_activation_feature_maps, pre_activation_feature_maps_path)
-        torch.save(teacher_layer_group_output_feature_maps, layer_group_output_feature_maps_path)
-        print("Teacher logits generated and saved")
-        quit()
-    else:
-        print("Teacher logits and feature map files already exists. Loading...")
-        teacher_logits, teacher_labels = torch.load(logits_path)
-        teacher_logits.to(device)
-        teacher_pre_activation_feature_maps = torch.load(pre_activation_feature_maps_path)
-        teacher_layer_group_output_feature_maps = torch.load(layer_group_output_feature_maps_path)
-
-        print("Teacher logits and feature maps loaded")
-        print(teacher_logits.shape)
-        print(len(teacher_pre_activation_feature_maps), len(teacher_pre_activation_feature_maps[0]), teacher_pre_activation_feature_maps[0][0].shape)
-        print(len(teacher_layer_group_output_feature_maps), len(teacher_layer_group_output_feature_maps[0]), teacher_layer_group_output_feature_maps[0][0].shape)
-
-
-    #     teacher_folder = 'teacher_models'
-    # teacher_subfolder = 'ResNet56'
-    # teacher_file_name = 'resnet56_params3_CIFAR100_1_00025.pth'
-    # teacher_path = f'{teacher_folder}/{teacher_subfolder}/{teacher_file_name}'
-    # logits_folder = f'teacher_logits'
-    # logits_subfolder = 'ResNet56'
-    # logits_filename = f'{teacher_file_name}.pt'
-
-
-
-
-    student_layer_indices = ATLoss.get_group_boundary_indices(args.model_name)
-    teacher_layer_indices = ATLoss.get_group_boundary_indices('resnet56')
-    layer_index_pairs = list(zip(student_layer_indices, teacher_layer_indices))
+    # Set up loss functions
     criterion = ATLoss(student=model,
                         teacher=teacher,
-                        beta=at_beta, mode=args.at_mode, device=device,
-                        cached_post_activation_fmaps=teacher_layer_group_output_feature_maps,
-                        cached_pre_activation_fmaps=teacher_pre_activation_feature_maps,
+                        beta=args.at_beta, mode=args.at_mode, device=device,
+                        cached_post_activation_fmaps=teacher_layer_groups_post_activation_fmaps,
+                        cached_pre_activation_fmaps=teacher_layer_groups_preactivation_fmaps,
                         use_post_activation=None)
-    test_val_criterion = nn.CrossEntropyLoss()
-    del teacher_layer_group_output_feature_maps
-    del teacher_pre_activation_feature_maps
+    del teacher_layer_groups_post_activation_fmaps
+    del teacher_layer_groups_preactivation_fmaps
 
+    test_val_criterion = nn.CrossEntropyLoss()    
+
+    # Restore hook states to their ideal values
     teacher.set_hook_device_state(args.device if torch.cuda.is_available() else "cpu")
     model.set_hook_device_state(args.device if torch.cuda.is_available() else "cpu")
-
 
     # Define the optimizer and learning rate scheduler
     optimizer = get_optimizer(params, model)
@@ -258,6 +150,9 @@ def main():
 
     # Initialize TensorBoard writer
     writer = SummaryWriter(f"runs/AT/{args.dataset}/{run_name}")
+
+    # Define the start time for the logger
+    start_time = datetime.now()
 
     # Initialize EarlyStopping if validation is used and early stopping params are passed
     early_stopping = None
@@ -314,9 +209,9 @@ def main():
         avg_time_per_epoch = sum([dur.total_seconds() for dur in times_at_epoch_end[-20:]]) / len(times_at_epoch_end[-20:])
         prev_time = curr_time
 
-        print(f"Epoch {epoch+1} took {fmt_duration((curr_time - epoch_start_time).total_seconds())}, Total time: {fmt_duration((curr_time - start_time).total_seconds())}")
-        print(f"Average time per epoch: {fmt_duration(avg_time_per_epoch)}")
-        print(f"Estimated time remaining: {fmt_duration(avg_time_per_epoch * (num_epochs - epoch - 1))}")
+        logger(f"Epoch {epoch+1} took {fmt_duration((curr_time - epoch_start_time).total_seconds())}, Total time: {fmt_duration((curr_time - start_time).total_seconds())}")
+        logger(f"Average time per epoch: {fmt_duration(avg_time_per_epoch)}")
+        logger(f"Estimated time remaining: {fmt_duration(avg_time_per_epoch * (num_epochs - epoch - 1))}")
         if (epoch + 1) % args.checkpoint_freq == 0:
             checkpoint_filename = os.path.join(args.checkpoint_dir, f"{run_name}_epoch{epoch+1}.pth.tar")
             save_checkpoint({

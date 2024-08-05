@@ -6,7 +6,7 @@ class TeacherModelHandler:
     """
     A handler class for loading a teacher model, generating and saving logits and feature maps.
     """
-    def __init__(self, model_class, teacher_file_name, device, num_classes=100, printer=print, base_folder='teacher_models'):
+    def __init__(self, model_class, teacher_file_name, device, num_classes=100, base_folder='teacher_models', printer=print):
         """
         Initializes the TeacherModelHandler.
         
@@ -18,12 +18,12 @@ class TeacherModelHandler:
             printer: A function for printing messages (default is print).
             base_folder: The base folder for storing model and output files.
         """
-        self.printer = printer
+        self.logger = printer
 
         self.base_folder = base_folder
         self.teacher_folder = os.path.join(self.base_folder, 'models')
-        self.logits_folder = os.path.join(self.base_folder, 'logits')
-        self.feature_maps_folder = os.path.join(self.base_folder, 'feature_maps')
+        self.logits_folder = os.path.join(self.base_folder, 'cache', 'logits')
+        self.feature_maps_folder = os.path.join(self.base_folder, 'cache', 'feature_maps')
 
         self.model_class = model_class
         self.teacher_file_name = teacher_file_name
@@ -42,14 +42,14 @@ class TeacherModelHandler:
         Returns:
             The loaded teacher model, or None if loading failed.
         """
-        self.printer(f"Loading teacher model from {self.teacher_path}")
+        self.logger(f"Loading teacher model from {self.teacher_path}")
         try:
             self.teacher.load(self.teacher_path, device=self.device)
             self.teacher.to(self.device)
-            self.printer("Teacher model loaded")
+            self.logger("Teacher model loaded")
             return self.teacher
         except Exception as e:
-            self.printer(f"Failed to load teacher model: {e}")
+            self.logger(f"Failed to load teacher model: {e}")
             return None
 
 
@@ -76,10 +76,10 @@ class TeacherModelHandler:
         """
         Prints the paths for the teacher model, logits, and feature maps.
         """
-        self.printer(f"Teacher path: {self.teacher_path}")
-        self.printer(f"Logits path: {self.logits_path}")
-        self.printer(f"Pre-activation feature maps path: {self.pre_activation_feature_maps_path}")
-        self.printer(f"Layer group output feature maps path: {self.layer_group_output_feature_maps_path}")
+        self.logger(f"Teacher path: {self.teacher_path}")
+        self.logger(f"Logits path: {self.logits_path}")
+        self.logger(f"Pre-activation feature maps path: {self.pre_activation_feature_maps_path}")
+        self.logger(f"Layer group output feature maps path: {self.layer_group_output_feature_maps_path}")
 
 
     def _init_paths(self):
@@ -119,12 +119,12 @@ class TeacherModelHandler:
         """
         Loads the existing logits and feature maps from files.
         """
-        self.printer("Teacher logits and feature map files already exist. Loading...")
+        self.logger("Teacher logits and feature map files already exist. Loading...")
         self.teacher_logits, self.teacher_labels = torch.load(self.logits_path)
         self.teacher_logits.to(self.device)
         self.teacher_pre_activation_feature_maps = torch.load(self.pre_activation_feature_maps_path)
         self.teacher_layer_group_output_feature_maps = torch.load(self.layer_group_output_feature_maps_path)
-        self.printer("Teacher logits and feature maps loaded")
+        self.logger("Teacher logits and feature maps loaded")
 
 
     def _generate_and_save_logits_and_feature_maps(self, trainloader, train_dataset):
@@ -135,18 +135,23 @@ class TeacherModelHandler:
             trainloader: DataLoader for the training data.
             train_dataset: The training dataset.
         """
-        self.printer("Generating teacher logits and feature maps...")
+        self.logger("Generating teacher logits and feature maps...")
+        initial_hook_device_state = self.teacher.get_hook_device_state()
         self.teacher.set_hook_device_state("cpu")
         self.teacher.eval()
         teacher_logits, teacher_labels, teacher_pre_activation_feature_maps, teacher_layer_group_output_feature_maps = self._initialize_empty_tensors(len(train_dataset))
         
-        start_time = time.time()
+        batch_durations = []
         
         for i, (inputs, labels, indices) in enumerate(trainloader):
-            if i % 5 == 0 or i == len(trainloader)-1:
-                elapsed_time = time.time() - start_time
-                remaining_time = (elapsed_time / (i + 1)) * (len(trainloader) - (i + 1))
-                self.printer(f"Batch {i+1}/{len(trainloader)}, Estimated time remaining: {remaining_time:.2f} seconds")
+            if i % 10 == 0 or i == len(trainloader)-1:
+                if i == 0:
+                    start_time = time.time()
+                    self.logger(f"Batch {i+1}/{len(trainloader)}")
+                else:
+                    elapsed_time = time.time() - start_time
+                    remaining_time = (elapsed_time / (i + 1)) * (len(trainloader) - (i + 1))
+                    self.logger(f"Batch {i+1}/{len(trainloader)}, Estimated time remaining: {remaining_time:.2f} seconds")
             
             inputs, labels = inputs.to(self.device, non_blocking=True), labels.to(self.device, non_blocking=True)
             
@@ -155,10 +160,17 @@ class TeacherModelHandler:
                 pre_activation_fmaps_for_batch = self.teacher.get_layer_group_preactivation_feature_maps()
                 layer_group_output_fmaps_for_batch = self.teacher.get_layer_group_output_feature_maps()
 
-            self._store_batch_results(indices, outputs, labels, pre_activation_fmaps_for_batch, layer_group_output_fmaps_for_batch, teacher_logits, teacher_labels, teacher_pre_activation_feature_maps, teacher_layer_group_output_feature_maps)
+            self._store_batch_results(indices, outputs, labels, pre_activation_fmaps_for_batch, layer_group_output_fmaps_for_batch,
+                                       teacher_logits, teacher_labels, teacher_pre_activation_feature_maps, teacher_layer_group_output_feature_maps)
 
+        self.teacher_logits = teacher_logits
+        self.teacher_labels = teacher_labels
+        self.teacher_pre_activation_feature_maps = teacher_pre_activation_feature_maps
+        self.teacher_layer_group_output_feature_maps = teacher_layer_group_output_feature_maps
+        # Save the results
         self._save_results(teacher_logits, teacher_labels, teacher_pre_activation_feature_maps, teacher_layer_group_output_feature_maps)
-        self.printer("Teacher logits and feature maps generated and saved")
+        self.teacher.set_hook_device_state(initial_hook_device_state)
+        self.logger("Teacher logits and feature maps generated and saved")
 
 
     def _initialize_empty_tensors(self, length):
