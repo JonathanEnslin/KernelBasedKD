@@ -5,7 +5,7 @@ from utils.log_utils import create_log_entry, log_to_csv
 import time
 
 class TrainStep:
-    def __init__(self, model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, autocast, is_kd=False):
+    def __init__(self, model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, autocast, is_kd=False, logger=print):
         self.model = model
         self.trainloader = trainloader
         self.criterion = criterion
@@ -18,6 +18,7 @@ class TrainStep:
         self.start_time = start_time
         self.is_kd = is_kd
         self.autocast = autocast
+        self.logger = logger
 
     def __call__(self, epoch):
         self.model.train()
@@ -55,7 +56,7 @@ class TrainStep:
             
             if i % 100 == 0:  # Log every 100 mini-batches
                 avg_loss = running_loss / (i + 1)  # Average loss over the batches so far
-                print(f'[Epoch {epoch+1}, Batch {i+1}/{len(self.trainloader)}] Loss: {avg_loss:.3f}')
+                self.logger(f'[Epoch {epoch+1}, Batch {i+1}/{len(self.trainloader)}] Loss: {avg_loss:.3f}')
                 self.writer.add_scalar('training_loss', avg_loss, epoch * len(self.trainloader) + i)
                 
         # Step the schedulers

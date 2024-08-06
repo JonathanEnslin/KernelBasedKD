@@ -50,7 +50,7 @@ def print_config(params, run_name, args, device, printer=print):
         printer(f"{key}: {value}")
 
 
-def get_data_loaders(args, params, dataset, run_name, transform_train, transform_test, dataset_class):
+def get_data_loaders(args, params, dataset, run_name, transform_train, transform_test, dataset_class, logger=print):
     trainloader = None
     valloader = None
     testloader = None
@@ -58,13 +58,13 @@ def get_data_loaders(args, params, dataset, run_name, transform_train, transform
     val_split_random_state = None
     if args.use_val:
         if args.use_split_indices_from_file:
-            print(f"Using split indices from file: {args.use_split_indices_from_file}")
+            logger(f"Using split indices from file: {args.use_split_indices_from_file}")
             train_indices, val_indices, val_split_random_state = dataset_splitter.load_indices(args.use_split_indices_from_file)
             trainset, valset = dataset_splitter.split_dataset_from_indices(dataset, train_indices, val_indices)
         else:
-            print(f"Splitting dataset with val_size={args.val_size} and stratify=True")
+            logger(f"Splitting dataset with val_size={args.val_size} and stratify=True")
             if args.val_split_random_state is not None:
-                print(f"Using random state: {args.val_split_random_state}")
+                logger(f"Using random state: {args.val_split_random_state}")
             indices_file_location = os.path.join(args.checkpoint_dir, f'{run_name}_indices.json')
             trainset, valset, val_split_random_state = dataset_splitter.split_dataset(
                 dataset, test_size=args.val_size, stratify=True, random_state=args.val_split_random_state, save_to_file=indices_file_location

@@ -5,7 +5,7 @@ from utils.log_utils import create_log_entry, log_to_csv
 import time
 
 class TrainStep:
-    def __init__(self, model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, autocast, is_kd=False):
+    def __init__(self, model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, autocast, is_kd=False, logger=print):
         self.model = model
         self.trainloader = trainloader
         self.criterion = criterion
@@ -18,6 +18,7 @@ class TrainStep:
         self.start_time = start_time
         self.is_kd = is_kd
         self.autocast = autocast
+        self.logger = logger
 
     def __call__(self, epoch):
         self.model.train()
@@ -54,13 +55,13 @@ class TrainStep:
             # top5_correct += sum([1 if labels[j] in top5[j] else 0 for j in range(len(labels))])
             
             if i % 100 == 0:  # Log every 100 mini-batches
-                print(f'[Epoch {epoch+1}, Batch {i+1}/{len(self.trainloader)}] Loss: {running_loss / 100:.3f}')
+                self.logger(f'[Epoch {epoch+1}, Batch {i+1}/{len(self.trainloader)}] Loss: {running_loss / 100:.3f}')
                 self.writer.add_scalar('training_loss', running_loss / 100, epoch * len(self.trainloader) + i)
                 running_loss = 0.0
             
             running_time += time.time() - loop_start
         
-        print(f"Training duration: {running_time:.2f}")
+        self.logger(f"Training duration: {running_time:.2f}")
         # Step the schedulers
         for scheduler in self.schedulers:
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):

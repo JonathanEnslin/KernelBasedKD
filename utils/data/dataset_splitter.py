@@ -58,7 +58,7 @@ def random_split(size, test_size=0.2, random_state=None, save_to_file=None):
     return train_indices, test_indices, random_state
 
 
-def save_indices(train_indices, test_indices, random_state, filename, verbose=True):
+def save_indices(train_indices, test_indices, random_state, filename, verbose=True, logger=print):
     """
     Save train and test indices to a file.
     
@@ -75,13 +75,13 @@ def save_indices(train_indices, test_indices, random_state, filename, verbose=Tr
         indices['random_state'] = random_state
 
     if verbose:
-        print(f"Saving indices to '{filename}'")
+        logger(f"Saving indices to '{filename}'")
 
     with open(filename, 'w') as f:
         json.dump(indices, f)
 
     if verbose:
-        print("Indices saved successfully")
+        logger("Indices saved successfully")
 
 
 def load_indices(filename):

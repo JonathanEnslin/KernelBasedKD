@@ -76,14 +76,14 @@ def main():
             try:
                 os.makedirs(directory, exist_ok=True)
             except OSError as e:
-                print(f"Error: {directory} could not be created. {e}")
+                logger(f"Error: {directory} could not be created. {e}")
                 exit(1)
 
 
     # Set the device
     requested_device = args.device
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
-    print(device)
+    logger(device)
 
     # Get gradscaler and autocast context class
     scaler, autocast = get_amp_and_grad_scaler(args, device, logger=logger)
@@ -94,13 +94,13 @@ def main():
     # if validation set is not used, print that track best and early stopping are disabled (if they are specified)
     if not args.use_val:
         if args.early_stopping_patience is not None:
-            print("Warning: Early stopping is disabled because validation set is not used.")
+            logger("Warning: Early stopping is disabled because validation set is not used.")
         elif args.early_stopping_start_epoch is not None:
-            print("Warning: Early stopping is disabled because validation set is not used.")
+            logger("Warning: Early stopping is disabled because validation set is not used.")
         if args.track_best_after_epoch is not None:
-            print("Warning: Best model tracking is disabled because validation set is not used.")
+            logger("Warning: Best model tracking is disabled because validation set is not used.")
 
-    print(f"Using run name: {run_name}")
+    logger(f"Using run name: {run_name}")
 
     csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
 
@@ -138,16 +138,16 @@ def main():
     logits_subfolder = 'ResNet56'
     logits_filename = f'{teacher_file_name}.pt'
     logits_path = f'{logits_folder}/{logits_subfolder}/{logits_filename}'
-    print(f"Teacher path: {teacher_path}")
-    print(f"Logits path: {logits_path}")
+    logger(f"Teacher path: {teacher_path}")
+    logger(f"Logits path: {logits_path}")
 
 
     # load the teacher model
-    print("Loading teacher model")
+    logger("Loading teacher model")
     teacher = resnet56(num_classes=100)
     teacher.load(teacher_path, device=device)
     teacher.to(device)
-    print("Teacher model loaded")
+    logger("Teacher model loaded")
     
     # create the directory for the teacher logits if it does not exist
     if not os.path.exists(f"{logits_folder}/{logits_subfolder}"):
@@ -155,16 +155,16 @@ def main():
 
     # If the logits file does not exist, generate the teacher logits
     if not os.path.exists(logits_path):
-        print("Teacher logits file does not exist. Generating teacher logits")
+        logger("Teacher logits file does not exist. Generating teacher logits")
 
-        print("Generating teacher logits for caching")
+        logger("Generating teacher logits for caching")
         teacher.eval()
         teacher_logits = [None for _ in range(len(train_dataset))]
         teacher_labels = [None for _ in range(len(train_dataset))]
 
         for i, (inputs, labels, indices) in enumerate(trainloader):
             if i % 4 == 0:
-                print(f"Batch {i+1}/{len(trainloader)}")
+                logger(f"Batch {i+1}/{len(trainloader)}")
             inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
             with torch.no_grad():
                 outputs = teacher(inputs)
@@ -177,13 +177,13 @@ def main():
 
         # save the teacher logits to a file logits_filename
         torch.save((teacher_logits, teacher_labels), logits_path)
-        print("Teacher logits generated and saved")
+        logger("Teacher logits generated and saved")
     else:
-        print("Teacher logits file already exists. Loading teacher logits")
+        logger("Teacher logits file already exists. Loading teacher logits")
         teacher_logits, teacher_labels = torch.load(logits_path)
         teacher_logits.to(device)
-        print("Teacher logits loaded")
-        print(teacher_logits.shape)
+        logger("Teacher logits loaded")
+        logger(teacher_logits.shape)
 
     criterion = VanillaKDLoss(alpha=0.9, temperature=4, teacher=teacher, cached_teacher_logits=teacher_logits)
     test_val_criterion = nn.CrossEntropyLoss()
@@ -252,9 +252,9 @@ def main():
         avg_time_per_epoch = sum([dur.total_seconds() for dur in times_at_epoch_end[-20:]]) / len(times_at_epoch_end[-20:])
         prev_time = curr_time
 
-        print(f"Epoch {epoch+1} took {fmt_duration((curr_time - epoch_start_time).total_seconds())}, Total time: {fmt_duration((curr_time - start_time).total_seconds())}")
-        print(f"Average time per epoch: {fmt_duration(avg_time_per_epoch)}")
-        print(f"Estimated time remaining: {fmt_duration(avg_time_per_epoch * (num_epochs - epoch - 1))}")
+        logger(f"Epoch {epoch+1} took {fmt_duration((curr_time - epoch_start_time).total_seconds())}, Total time: {fmt_duration((curr_time - start_time).total_seconds())}")
+        logger(f"Average time per epoch: {fmt_duration(avg_time_per_epoch)}")
+        logger(f"Estimated time remaining: {fmt_duration(avg_time_per_epoch * (num_epochs - epoch - 1))}")
         if (epoch + 1) % args.checkpoint_freq == 0:
             checkpoint_filename = os.path.join(args.checkpoint_dir, f"{run_name}_epoch{epoch+1}.pth.tar")
             save_checkpoint({

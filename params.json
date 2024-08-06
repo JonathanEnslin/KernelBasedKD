@@ -118,5 +118,86 @@
       "max_epochs": 240,
       "batch_size": 256
     }
+  },
+  "params12": {
+    "notes": {
+      "source": "Adapted from Contrastive Representation Distillation"
+    },
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "lr": 0.05,
+        "momentum": 0.9,
+        "nesterov": false,
+        "weight_decay": 0.0005
+      }
+    },
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.1,
+          "milestones": [150, 180, 210]
+        }
+      }
+    ],
+    "training": {
+      "max_epochs": 240,
+      "batch_size": 128
+    }
+  },
+  "params13": {
+    "notes": {
+      "source": "Adapted from Contrastive Representation Distillation"
+    },
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "lr": 0.07,
+        "momentum": 0.9,
+        "nesterov": false,
+        "weight_decay": 0.0005
+      }
+    },
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.1,
+          "milestones": [150, 180, 210]
+        }
+      }
+    ],
+    "training": {
+      "max_epochs": 240,
+      "batch_size": 128
+    }
+  },
+  "params14": {
+    "notes": {
+      "source": "Adapted from Contrastive Representation Distillation"
+    },
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "lr": 0.2,
+        "momentum": 0.9,
+        "nesterov": false,
+        "weight_decay": 0.0005
+      }
+    },
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.1,
+          "milestones": [150, 180, 210]
+        }
+      }
+    ],
+    "training": {
+      "max_epochs": 240,
+      "batch_size": 256
+    }
   }
 }

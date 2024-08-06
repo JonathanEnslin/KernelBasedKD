@@ -4,7 +4,7 @@ from sklearn.metrics import f1_score
 from utils.log_utils import create_log_entry, log_to_csv
 
 class TestStep:
-    def __init__(self, model, testloader, criterion, device, writer, csv_file, start_time, autocast):
+    def __init__(self, model, testloader, criterion, device, writer, csv_file, start_time, autocast, logger=print):
         self.model = model
         self.testloader = testloader
         self.criterion = criterion
@@ -13,6 +13,7 @@ class TestStep:
         self.csv_file = csv_file
         self.start_time = start_time
         self.autocast = autocast
+        self.logger = logger
 
     def __call__(self, epoch):
         self.model.eval()
@@ -56,7 +57,7 @@ class TestStep:
         self.writer.add_scalar('test_top5_error', top5_error, epoch)
 
         # Print the test accuracy
-        print(f'--> Test accuracy: {accuracy:.2f}%')
+        self.logger(f'--> Test accuracy: {accuracy:.2f}%')
 
         log_entry = create_log_entry(epoch, 'test', epoch_loss, accuracy, f1, self.start_time, self.device, top5_error)
         log_to_csv(self.csv_file, log_entry)
