@@ -12,6 +12,9 @@ def ensure_dir_existence(dirs, logger=print):
             try:
                 os.makedirs(directory, exist_ok=True)
             except OSError as e:
-                logger(f"Error: {directory} could not be created. {e}")
+                try:
+                    logger(f"Error: {directory} could not be created. {e}")
+                except Exception as ex:
+                    print(f"Error: {directory} could not be created. {e}, and logger failed with {ex}")
                 return False
     return True

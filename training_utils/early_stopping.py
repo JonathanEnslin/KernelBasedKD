@@ -2,7 +2,7 @@ import numpy as np
 
 class EarlyStopping:
     """Early stops the training if validation metric doesn't improve after a given patience."""
-    def __init__(self, patience=7, verbose=False, delta=0, trace_func=print, monitor='loss', enabled_after_epoch=0):
+    def __init__(self, patience=7, verbose=False, delta=0, logger=print, monitor='loss', enabled_after_epoch=0):
         """
         Args:
             patience (int): How long to wait after last time validation metric improved.
@@ -25,7 +25,7 @@ class EarlyStopping:
         self.early_stop = False
         self.val_metric_min = np.inf if monitor == 'loss' else -np.inf
         self.delta = delta
-        self.trace_func = trace_func
+        self.trace_func = logger
         self.monitor = monitor
         self.enabled_after_epoch = enabled_after_epoch
         self.epoch = 0

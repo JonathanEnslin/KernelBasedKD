@@ -103,7 +103,7 @@ def main():
 
     csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
 
-    config_utils.print_config(params, run_name, args, device, printer=print)
+    config_utils.print_config(params, run_name, args, device, logger=print)
 
     # Get the dataset info
     dataset_class, num_classes, transform_train, transform_test = get_dataset_info(args.dataset)

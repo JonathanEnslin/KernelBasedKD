@@ -35,7 +35,6 @@ def fmt_duration(duration):
     ms = (duration - int(duration)) * 1000
     return f"{int(hours)}h {int(minutes)}m {int(seconds)}s {int(ms)}ms"
 
-
 def main():
     parser = argparse.ArgumentParser(description="Training script for NN")
     parser.add_argument('--params', type=str, required=True, help='Path to the params.json file')
@@ -65,15 +64,23 @@ def main():
     parser.add_argument('--disable_persistent_workers', action='store_true', help='Disables using persistent workers for the DataLoader')
     args = parser.parse_args()
 
+    # Get the run name
+    run_name = config_utils.get_run_name(args)
+
+    def logger(*args, **kwargs):
+        print(*args, **kwargs)
+        with open(f"./run_data/output_logs/{run_name}.log", "a") as f:
+            print(*args, **kwargs, file=f)
+
     # Initialise logger
-    logger = print
+    logger = logger
 
     # Load the training parameters
     params = load_params(args.params, args.param_set)
 
     # Check that model_save_dir, checkpoint_dir, and csv_dir are valid directories
     # if they do not exist, create them, if they can not be created print an error message and exit gracefully
-    if not utils.miscellaneous.ensure_dir_existence([args.model_save_dir, args.checkpoint_dir, args.csv_dir]):
+    if not utils.miscellaneous.ensure_dir_existence([args.model_save_dir, args.checkpoint_dir, args.csv_dir, "run_data/output_logs"], logger=logger):
         exit(1)
 
     # Set the device
@@ -83,9 +90,6 @@ def main():
 
     # Get gradscaler and autocast context class
     scaler, autocast = get_amp_and_grad_scaler(args, device, logger=logger)
-
-    # Get the run name
-    run_name = config_utils.get_run_name(args)
 
     # if validation set is not used, print that track best and early stopping are disabled (if they are specified)
     if not args.use_val:
@@ -100,10 +104,10 @@ def main():
 
     csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
 
-    config_utils.print_config(params, run_name, args, device, printer=print)
+    config_utils.print_config(params, run_name, args, device, logger=logger)
 
     # Get the dataset info
-    dataset_class, num_classes, transform_train, transform_test = get_dataset_info(args.dataset)
+    dataset_class, num_classes, transform_train, transform_test = get_dataset_info(args.dataset, logger=logger)
     if dataset_class is None:
         exit(1)
 
@@ -111,10 +115,12 @@ def main():
     train_dataset = dataset_class(root=args.dataset_dir, train=True, download=True, transform=transform_train)
 
     trainloader, valloader, testloader, val_split_random_state \
-            = config_utils.get_data_loaders(args, params, train_dataset, run_name, transform_train, transform_test, dataset_class)
+            = config_utils.get_data_loaders(args, params, train_dataset, run_name, transform_train, transform_test, dataset_class, logger=logger)
 
     # Initialize the nn model
     model = initialize_model(args.model_name, num_classes=num_classes, device=device)
+    if model is None:
+        exit(1)
 
     # Set up loss functions
     criterion = nn.CrossEntropyLoss() 
@@ -141,7 +147,8 @@ def main():
             patience=args.early_stopping_patience or 10, 
             verbose=True, 
             enabled_after_epoch=args.early_stopping_start_epoch or 10,
-            monitor='loss'
+            monitor='loss',
+            logger=logger
         )
 
     # Initialize BestModelTracker if validation is used
@@ -152,7 +159,8 @@ def main():
             delta=0,
             path=os.path.join(args.model_save_dir, f"{run_name}_best.pth"),
             monitor='loss', # Only loss is currently supported
-            enabled_after_epoch=args.track_best_after_epoch or 10
+            enabled_after_epoch=args.track_best_after_epoch or 10,
+            logger=logger
         )
 
 
@@ -160,14 +168,14 @@ def main():
     start_epoch = 0
 
     if args.resume:
-        start_epoch = load_checkpoint(model, optimizer, schedulers, scaler, filename=args.resume)
+        start_epoch = load_checkpoint(model, optimizer, schedulers, scaler, filename=args.resume, logger=logger)
 
-    train_step = TrainStep(model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, autocast, is_kd=False)
+    train_step = TrainStep(model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, autocast, is_kd=False, logger=logger)
     if args.use_val:
-        validation_step = ValidationStep(model, valloader, test_val_criterion, device, writer, csv_file, start_time, autocast, early_stopping, best_model_tracker)
+        validation_step = ValidationStep(model, valloader, test_val_criterion, device, writer, csv_file, start_time, autocast, early_stopping, best_model_tracker, logger=logger)
         # validation_step = ValidationStep(model, valloader, criterion, device, writer, csv_file, start_time, early_stopping, best_model_tracker)
     if not args.use_val or not args.disable_test:
-        test_step = TestStep(model, testloader, test_val_criterion, device, writer, csv_file, start_time, autocast)
+        test_step = TestStep(model, testloader, test_val_criterion, device, writer, csv_file, start_time, autocast, logger=logger)
         # test_step = TestStep(model, testloader, criterion, device, writer, csv_file, start_time)
 
     # Main training loop
@@ -184,7 +192,7 @@ def main():
             if early_stop:
                 break  # Early stopping triggered, exit training loop
         if not args.use_val or not args.disable_test:
-            if epoch >= args.disable_test_until_epoch or epoch % 10 == 0:
+            if epoch >= args.disable_test_until_epoch or epoch % 10 == 0 or epoch == num_epochs - 1:
                 test_step(epoch)
 
         curr_time = datetime.now()
@@ -204,8 +212,7 @@ def main():
                 'schedulers': [scheduler.state_dict() for scheduler in schedulers],
                 'scaler': scaler.state_dict(),
                 'val_split_random_state': val_split_random_state,
-            }, is_best=False, filename=checkpoint_filename)
-
+            }, is_best=False, filename=checkpoint_filename, logger=logger)
         
 
     model.save(f'./{args.model_save_dir}/{run_name}.pth')
@@ -213,7 +220,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-

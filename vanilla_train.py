@@ -104,7 +104,7 @@ def main():
 
     csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
 
-    config_utils.print_config(params, run_name, args, device, printer=print)
+    config_utils.print_config(params, run_name, args, device, logger=print)
 
     # Define transformations for the training, validation, and test sets
     if args.dataset == 'CIFAR10':

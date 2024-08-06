@@ -56,7 +56,7 @@ class TrainStep:
             
             if i % 100 == 0:  # Log every 100 mini-batches
                 avg_loss = running_loss / (i + 1)  # Average loss over the batches so far
-                self.logger(f'[Epoch {epoch+1}, Batch {i+1}/{len(self.trainloader)}] Loss: {avg_loss:.3f}')
+                self.logger(f'[Epoch {epoch+1}, Batch {i}/{len(self.trainloader) - 1}] Loss: {avg_loss:.3f}')
                 self.writer.add_scalar('training_loss', avg_loss, epoch * len(self.trainloader) + i)
                 
         # Step the schedulers

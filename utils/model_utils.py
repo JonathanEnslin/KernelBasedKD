@@ -1,6 +1,6 @@
 import torch
 
-def initialize_model(model_name, num_classes, device):
+def initialize_model(model_name, num_classes, device, logger=print):
     if model_name == 'resnet20':
         from models.resnet import resnet20
         model = resnet20(num_classes=num_classes).to(device)
@@ -17,7 +17,8 @@ def initialize_model(model_name, num_classes, device):
         from models.dummy_teacher_model import DummyTeacherModel
         model = DummyTeacherModel(3, 100).to(device)
     else:
-        raise ValueError(f"Unknown model name {model_name}")
+        logger(f"Unknown model name {model_name}")
+        return None
     return model
 
 

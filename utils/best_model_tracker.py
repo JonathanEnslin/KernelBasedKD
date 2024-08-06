@@ -3,7 +3,7 @@ import torch
 
 class BestModelTracker:
     """Tracks the best validation model after a given number of epochs."""
-    def __init__(self, verbose=False, delta=0, path='best_model.pt', trace_func=print, monitor='loss', enabled_after_epoch=0):
+    def __init__(self, verbose=False, delta=0, path='best_model.pt', logger=print, monitor='loss', enabled_after_epoch=0):
         """
         Args:
             verbose (bool): If True, prints a message for each validation metric improvement.
@@ -24,7 +24,7 @@ class BestModelTracker:
         self.val_metric_min = np.inf if monitor == 'loss' else -np.inf
         self.delta = delta
         self.path = path
-        self.trace_func = trace_func
+        self.trace_func = logger
         self.monitor = monitor
         self.enabled_after_epoch = enabled_after_epoch
         self.epoch = 0
