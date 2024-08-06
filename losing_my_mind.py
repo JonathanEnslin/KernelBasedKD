@@ -15,7 +15,7 @@ def fmt_duration(duration):
     return f"{int(hours)}h {int(minutes)}m {int(seconds)}s {int(ms)}ms"
 
 # Configurable parameters
-use_amp = False  # Set this to False to disable AMP
+use_amp = True  # Set this to False to disable AMP
 
 if use_amp:
     from torch.cuda.amp import GradScaler, autocast
@@ -106,7 +106,9 @@ if __name__ == '__main__':
         correct = 0
         total = 0
 
+        running_time = 0.0
         for batch_idx, (inputs, targets) in enumerate(trainloader):
+            loop_start = time.time()
             inputs, targets = inputs.to(device), targets.to(device)
             
             optimizer.zero_grad()
@@ -120,15 +122,15 @@ if __name__ == '__main__':
             scaler.update()
 
             running_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += targets.size(0)
-            correct += predicted.eq(targets).sum().item()
+            # _, predicted = outputs.max(1)
+            # total += targets.size(0)
+            # correct += predicted.eq(targets).sum().item()
 
             if batch_idx % 100 == 0:  # Print every 100 batches
-                print(f'Epoch [{epoch}/{num_epochs}], Step [{batch_idx}/{len(trainloader)}], Loss: {loss.item():.4f}, Accuracy: {100.*correct/total:.2f}%')
-
+                print(f'Epoch [{epoch}/{num_epochs}], Step [{batch_idx}/{len(trainloader)}], Loss: {loss.item():.4f}')
+                # print(f'Epoch [{epoch}/{num_epochs}], Step [{batch_idx}/{len(trainloader)}], Loss: {loss.item():.4f}, Accuracy: {100.*correct/total:.2f}%')
+            running_time += time.time() - loop_start
         scheduler.step()
-
     epoch_durs = []
 
     # Testing function

@@ -72,14 +72,15 @@ def get_data_loaders(args, params, dataset, run_name, transform_train, transform
     else:
         trainset = dataset
 
-    trainloader = DataLoader(trainset, batch_size=params['training']['batch_size'], shuffle=True, num_workers=2, pin_memory=True)
+    use_persistent_workers = args.num_workers > 0 and not args.disable_persistent_workers
+    trainloader = DataLoader(trainset, batch_size=params['training']['batch_size'], shuffle=True, num_workers=args.num_workers, pin_memory=True, persistent_workers=use_persistent_workers)
     
     if args.use_val:
-        valloader = DataLoader(valset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2, pin_memory=True)
+        valloader = DataLoader(valset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2, pin_memory=True, persistent_workers=use_persistent_workers)
     
     if not args.use_val or not args.disable_test:
         testset = dataset_class(root=args.dataset_dir, train=False, download=True, transform=transform_test)
-        testloader = DataLoader(testset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2, pin_memory=True)
+        testloader = DataLoader(testset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2, pin_memory=True, persistent_workers=use_persistent_workers)
     
     return trainloader, valloader, testloader, val_split_random_state
 
@@ -89,4 +90,3 @@ def get_writer_name(kd_mode, args, run_name):
         return f"runs/{kd_mode}/{args.dataset}/{run_name}"
     else:
         return f"runs/{args.dataset}/{run_name}"
-        

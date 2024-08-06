@@ -20,6 +20,7 @@ def initialize_model(model_name, num_classes, device):
         raise ValueError(f"Unknown model name {model_name}")
     return model
 
+
 def get_optimizer(params, model):
     optimizer_type = params['optimizer']['type']
     optimizer_kwargs = params['optimizer']['parameters']
@@ -28,6 +29,7 @@ def get_optimizer(params, model):
     else:
         raise ValueError(f"Unknown optimizer type {optimizer_type}")
     return optimizer
+
 
 def get_schedulers(params, optimizer):
     schedulers = []

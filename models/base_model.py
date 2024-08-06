@@ -4,7 +4,7 @@ Sourced from https://github.com/Matthew-Dickson/FilterBasedKnowledgeDistillation
 
 import torch
 from torch import nn
-from functions.activation.activation_functions import batch_softmax_with_temperature
+from utils.amp_grad_scaling_handler import MockAutocast
 
 class BaseModel(nn.Module):
 
@@ -14,7 +14,10 @@ class BaseModel(nn.Module):
         self.pre_activation_fmaps = []
         self.post_activation_fmaps = []
         self.hook_device_state = "cpu"
-        
+        self.autocast = MockAutocast
+
+    def set_autocast(self, autocast):
+        self.autocast = autocast
 
     def predict(self, dataloader, device="cpu"):
         self.eval()
@@ -38,18 +41,11 @@ class BaseModel(nn.Module):
     def get_hook_device_state(self):
         return self.hook_device_state
 
-    def generate_soft_targets(self, images, temperature = 40):
-        self.eval()
-        with torch.no_grad():
-            logits = self(images)
-            probs_with_temperature = batch_softmax_with_temperature(logits, temperature)
-        return probs_with_temperature
-
 
     def generate_logits(self, images):
         self.eval()
         with torch.no_grad():
-            with torch.cuda.amp.autocast():
+            with self.autocast(self.device.type):
                 logits = self(images)
         return logits
     

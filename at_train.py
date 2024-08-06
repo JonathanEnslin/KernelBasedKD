@@ -23,6 +23,7 @@ from loss_functions.AttentionTransfer.attention_transfer import ATLoss
 from models.resnet import resnet56
 from utils.data.indexed_dataset import IndexedCIFAR10, IndexedCIFAR100
 from utils.teacher.teacher_model_handler import TeacherModelHandler
+from utils.amp_grad_scaling_handler import get_amp_and_grad_scaler
 
 
 import utils
@@ -58,9 +59,12 @@ def main():
     parser.add_argument('--val_split_random_state', type=int, default=None, help='Random state for the validation split')
     parser.add_argument('--use_split_indices_from_file', type=str, default=None, help='Path to a file containing indices for the train and validation split')
     parser.add_argument('--disable_auto_run_indexing', action='store_true', help='Disable automatic run indexing (i.e. _run1, _run2, etc.)')
+    parser.add_argument('--use_amp', action='store_true', help='Use Automatic Mixed Precision (AMP) and Gradient Scaling (Warning: may cause gradient under/overflow, use carefully)')
     parser.add_argument('--at_mode', type=str, default='impl', choices=['impl', 'paper', 'zoo'], help='Mode for attention transfer loss')
     parser.add_argument('--at_beta', type=float, default=1.0, help='Beta parameter for attention transfer loss, default None means will be inferred automatically based on mode')
     parser.add_argument('--use_cached_teacher', action='store_true', help='Use cached teacher logits and feature maps')
+    parser.add_argument('--num_workers', type=int, default=2, help='Number of workers for the DataLoader')
+    parser.add_argument('--disable_persistent_workers', action='store_true', help='Disables using persistent workers for the DataLoader')
     args = parser.parse_args()
 
     # Initialise logger
@@ -78,6 +82,10 @@ def main():
     requested_device = args.device
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
     logger(device)
+
+    # Get gradscaler and autocast context class
+    scaler, autocast = get_amp_and_grad_scaler(args, device, logger=logger)
+
 
     # Get the run name
     run_name = config_utils.get_run_name(args)
@@ -153,7 +161,6 @@ def main():
 
     # Define the optimizer and learning rate scheduler
     optimizer = get_optimizer(params, model)
-    scaler = amp.GradScaler()
     schedulers = get_schedulers(params, optimizer)
 
     # Initialize TensorBoard writer
@@ -191,13 +198,11 @@ def main():
     if args.resume:
         start_epoch = load_checkpoint(model, optimizer, schedulers, scaler, filename=args.resume)
 
-    train_step = TrainStep(model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, is_kd=True)
+    train_step = TrainStep(model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, autocast, is_kd=True)
     if args.use_val:
-        validation_step = ValidationStep(model, valloader, test_val_criterion, device, writer, csv_file, start_time, early_stopping, best_model_tracker)
-        # validation_step = ValidationStep(model, valloader, criterion, device, writer, csv_file, start_time, early_stopping, best_model_tracker)
+        validation_step = ValidationStep(model, valloader, test_val_criterion, device, writer, csv_file, start_time, autocast, early_stopping, best_model_tracker)
     if not args.use_val or not args.disable_test:
-        test_step = TestStep(model, testloader, test_val_criterion, device, writer, csv_file, start_time)
-        # test_step = TestStep(model, testloader, criterion, device, writer, csv_file, start_time)
+        test_step = TestStep(model, testloader, test_val_criterion, device, writer, csv_file, start_time, autocast)
 
     # Main training loop
     times_at_epoch_end = []

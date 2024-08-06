@@ -25,10 +25,10 @@ class TrainStep:
         all_labels = []
         all_preds = []
         top5_correct = 0
-        total_samples = 0  # Keep track of the total number of samples
+        running_time = 0.0
         for i, (inputs, labels, indices) in enumerate(self.trainloader):
+            loop_start = time.time()
             inputs, labels = inputs.to(self.device), labels.to(self.device)
-            total_samples += labels.size(0)
             
             self.optimizer.zero_grad()
 
@@ -46,18 +46,21 @@ class TrainStep:
             running_loss += loss.item()
             
             _, predicted = torch.max(outputs, 1)
-            all_labels.append(labels.cpu())
-            all_preds.append(predicted.cpu())
+            all_labels.extend(labels.cpu().numpy())
+            all_preds.extend(predicted.cpu().numpy())
 
             # Calculate top-5 error
-            top5 = outputs.topk(5, dim=1)[1]
-            top5_correct += (top5 == labels.view(-1, 1)).sum().item()
+            # top5 = outputs.topk(5, dim=1)[1]
+            # top5_correct += sum([1 if labels[j] in top5[j] else 0 for j in range(len(labels))])
             
             if i % 100 == 0:  # Log every 100 mini-batches
-                avg_loss = running_loss / (i + 1)  # Average loss over the batches so far
-                print(f'[Epoch {epoch+1}, Batch {i+1}/{len(self.trainloader)}] Loss: {avg_loss:.3f}')
-                self.writer.add_scalar('training_loss', avg_loss, epoch * len(self.trainloader) + i)
-                
+                print(f'[Epoch {epoch+1}, Batch {i+1}/{len(self.trainloader)}] Loss: {running_loss / 100:.3f}')
+                self.writer.add_scalar('training_loss', running_loss / 100, epoch * len(self.trainloader) + i)
+                running_loss = 0.0
+            
+            running_time += time.time() - loop_start
+        
+        print(f"Training duration: {running_time:.2f}")
         # Step the schedulers
         for scheduler in self.schedulers:
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
@@ -65,15 +68,11 @@ class TrainStep:
             else:
                 scheduler.step()
 
-        # Concatenate all predictions and labels for metrics calculation
-        all_labels = torch.cat(all_labels)
-        all_preds = torch.cat(all_preds)
-
         # Calculate metrics
         epoch_loss = running_loss / len(self.trainloader)
-        accuracy = 100 * (all_preds == all_labels).sum().item() / len(all_labels)
-        f1 = f1_score(all_labels.numpy(), all_preds.numpy(), average='macro')
-        top5_error = 100 * (1 - top5_correct / total_samples)
+        accuracy = 100 * sum(p == l for p, l in zip(all_preds, all_labels)) / len(all_labels)
+        f1 = f1_score(all_labels, all_preds, average='macro')
+        top5_error = 100 * (1 - top5_correct / len(all_labels))
 
         self.writer.add_scalar('training_epoch_loss', epoch_loss, epoch)
         self.writer.add_scalar('training_accuracy', accuracy, epoch)

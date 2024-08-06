@@ -3,68 +3,11 @@
     "description": "Training parameters for different experimental setups",
     "version": "1.0"
   },
-  "params1": {
-    "optimizer": {
-      "type": "SGD",
-      "parameters": {
-        "lr": 0.1,
-        "momentum": 0.9,
-        "nesterov": false,
-        "weight_decay": 0.0005
-      }
-    },
-    "schedulers": [
-      {
-        "type": "StepLR",
-        "parameters": {
-          "gamma": 0.2,
-          "step_size": 50
-        }
-      },
-      {
-        "type": "ReduceLROnPlateau",
-        "parameters": {
-          "mode": "min",
-          "factor": 0.1,
-          "patience": 10
-        }
-      }
-    ],
-    "training": {
-      "max_epochs": 200,
-      "batch_size": 128,
-      "using_amp": true
-    }
-  },
-  "params2": {
-    "optimizer": {
-      "type": "SGD",
-      "parameters": {
-        "lr": 0.1,
-        "momentum": 0.9,
-        "nesterov": false,
-        "weight_decay": 0.0001
-      }
-    },
-    "schedulers": [
-      {
-        "type": "StepLR",
-        "parameters": {
-          "gamma": 0.1,
-          "step_size": 50
-        }
-      }
-    ],
-    "training": {
-      "max_epochs": 100,
-      "batch_size": 128,
-      "using_amp": false
-    }
-  },
   "params3": {
     "notes": {
       "source": "Enhancing batch normalized convolutional networks using displaced rectifier linear units: A systematic comparative study",
-      "url": "http://dx.doi.org/10.1016/j.eswa.2019.01.066"
+      "url": "http://dx.doi.org/10.1016/j.eswa.2019.01.066",
+      "notes": "found to be inferior to other configurations in this file, and especially innefective for certain kd methods"
     },
     "optimizer": {
       "type": "SGD",
@@ -86,138 +29,14 @@
     ],
     "training": {
       "max_epochs": 120,
-      "batch_size": 128,
-      "using_amp": true
-    }
-  },
-  "params4": {
-    "optimizer": {
-      "type": "SGD",
-      "parameters": {
-        "lr": 0.1,
-        "momentum": 0.9,
-        "nesterov": true,
-        "weight_decay": 0.0005
-      }
-    },
-    "schedulers": [
-      {
-        "type": "MultiStepLR",
-        "parameters": {
-          "gamma": 0.1,
-          "milestones": [150, 180, 210]
-        }
-      }
-    ],
-    "training": {
-      "max_epochs": 240,
-      "batch_size": 128,
-      "using_amp": true
-    }
-  },
-  "params5": {
-    "optimizer": {
-      "type": "SGD",
-      "parameters": {
-        "lr": 0.05,
-        "momentum": 0.9,
-        "nesterov": true,
-        "weight_decay": 0.0005
-      }
-    },
-    "schedulers": [
-      {
-        "type": "CosineAnnealingLR",
-        "parameters": {
-          "T_max": 200
-        }
-      }
-    ],
-    "training": {
-      "max_epochs": 220,
-      "batch_size": 128,
-      "using_amp": true
-    }
-  },
-  "params6": {
-    "optimizer": {
-      "type": "SGD",
-      "parameters": {
-        "lr": 0.1,
-        "momentum": 0.9,
-        "nesterov": true,
-        "weight_decay": 0.0001
-      }
-    },
-    "schedulers": [
-      {
-        "type": "MultiStepLR",
-        "parameters": {
-          "gamma": 0.1,
-          "milestones": [60, 75, 90]
-        }
-      }
-    ],
-    "training": {
-      "max_epochs": 120,
-      "batch_size": 128,
-      "using_amp": true
-    }
-  },
-  "params7": {
-    "optimizer": {
-      "type": "SGD",
-      "parameters": {
-        "lr": 0.1,
-        "momentum": 0.9,
-        "weight_decay": 0.0001
-      }
-    },
-    "schedulers": [
-      {
-        "type": "MultiStepLR",
-        "parameters": {
-          "gamma": 0.1,
-          "milestones": [100, 150]
-        }
-      }
-    ],
-    "training": {
-      "max_epochs": 200,
-      "batch_size": 128,
-      "using_amp": false
-    }
-  },
-  "params8": {
-    "optimizer": {
-      "type": "SGD",
-      "parameters": {
-        "lr": 0.1,
-        "momentum": 0.9,
-        "weight_decay": 0.0001,
-        "nesterov": true
-      }
-    },
-    "schedulers": [
-      {
-        "type": "MultiStepLR",
-        "parameters": {
-          "gamma": 0.1,
-          "milestones": [100, 150]
-        }
-      }
-    ],
-    "training": {
-      "max_epochs": 200,
-      "batch_size": 128,
-      "using_amp": false
+      "batch_size": 128
     }
   },
   "params9": {
     "notes": {
       "source": "Contrastive Representation Distillation",
       "url": "https://arxiv.org/abs/1910.10699",
-      "notes": "Values obtained from github repository: https://github.com/HobbitLong/RepDistiller/tree/master, additionally, batch size was increased to 128"
+      "notes": "Values obtained from github repository: https://github.com/HobbitLong/RepDistiller/tree/master"
     },
     "optimizer": {
       "type": "SGD",
@@ -239,9 +58,65 @@
     ],
     "training": {
       "max_epochs": 240,
-      "batch_size": 128,
-      "using_amp": false
+      "batch_size": 64
+    }
+  },
+  "params10": {
+    "notes": {
+      "source": "Adapted from Contrastive Representation Distillation",
+      "url": "https://arxiv.org/abs/1910.10699",
+      "notes": "Values obtained from github repository: https://github.com/HobbitLong/RepDistiller/tree/master, additionally, batch size was increased to 128 and lr increased to 0.1"
+    },
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "lr": 0.1,
+        "momentum": 0.9,
+        "nesterov": false,
+        "weight_decay": 0.0005
+      }
+    },
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.1,
+          "milestones": [150, 180, 210]
+        }
+      }
+    ],
+    "training": {
+      "max_epochs": 240,
+      "batch_size": 128
+    }
+  },
+  "params11": {
+    "notes": {
+      "source": "Adapted from Contrastive Representation Distillation",
+      "url": "https://arxiv.org/abs/1910.10699",
+      "notes": "Values obtained from github repository: https://github.com/HobbitLong/RepDistiller/tree/master, additionally, batch size was increased to 256 and lr increased to 0.1"
+    },
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "lr": 0.1,
+        "momentum": 0.9,
+        "nesterov": false,
+        "weight_decay": 0.0005
+      }
+    },
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.1,
+          "milestones": [150, 180, 210]
+        }
+      }
+    ],
+    "training": {
+      "max_epochs": 240,
+      "batch_size": 256
     }
   }
-
 }

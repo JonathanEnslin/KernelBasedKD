@@ -1,0 +1,1 @@
+https://stackoverflow.com/questions/53033556/how-should-the-learning-rate-change-as-the-batch-size-change
