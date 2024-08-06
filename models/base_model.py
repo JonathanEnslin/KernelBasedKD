@@ -15,6 +15,11 @@ class BaseModel(nn.Module):
         self.post_activation_fmaps = []
         self.hook_device_state = "cpu"
         self.autocast = MockAutocast
+        self.device_type = "cpu"
+
+    def to(self, device, *args, **kwargs):
+        self.device_type = device.type
+        return super(BaseModel, self).to(device, *args, **kwargs)
 
     def set_autocast(self, autocast):
         self.autocast = autocast
@@ -45,7 +50,7 @@ class BaseModel(nn.Module):
     def generate_logits(self, images):
         self.eval()
         with torch.no_grad():
-            with self.autocast(self.device.type):
+            with self.autocast(self.device_type):
                 logits = self(images)
         return logits
     

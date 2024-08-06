@@ -66,6 +66,7 @@ def main():
     parser.add_argument('--at_mode', type=str, default='impl', choices=['impl', 'paper', 'zoo'], help='Mode for attention transfer loss')
     parser.add_argument('--at_beta', type=float, default=1.0, help='Beta parameter for attention transfer loss, default None means will be inferred automatically based on mode')
     parser.add_argument('--use_cached_teacher', action='store_true', help='Use cached teacher logits and feature maps')
+    parser.add_argument('--teacher_fname', type=str, default=None, help='The filename of the teacher, directory is inferred from the model')
     args = parser.parse_args()
 
     # Get the run name
