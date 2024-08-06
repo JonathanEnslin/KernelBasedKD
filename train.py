@@ -58,6 +58,7 @@ def main():
     parser.add_argument('--val_split_random_state', type=int, default=None, help='Random state for the validation split')
     parser.add_argument('--use_split_indices_from_file', type=str, default=None, help='Path to a file containing indices for the train and validation split')
     parser.add_argument('--disable_auto_run_indexing', action='store_true', help='Disable automatic run indexing (i.e. _run1, _run2, etc.)')
+    parser.add_argument('--disable_test_until_epoch', type=int, default=0, help='Disable the test set until this epoch')
     args = parser.parse_args()
 
     # Initialise logger
@@ -175,7 +176,8 @@ def main():
             if early_stop:
                 break  # Early stopping triggered, exit training loop
         if not args.use_val or not args.disable_test:
-            test_step(epoch)
+            if epoch >= args.disable_test_until_epoch:
+                test_step(epoch)
 
         curr_time = datetime.now()
         times_at_epoch_end.append(curr_time - prev_time)

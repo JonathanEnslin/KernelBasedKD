@@ -60,6 +60,7 @@ def main():
     parser.add_argument('--disable_auto_run_indexing', action='store_true', help='Disable automatic run indexing (i.e. _run1, _run2, etc.)')
     parser.add_argument('--at_mode', type=str, default='impl', choices=['impl', 'paper', 'zoo'], help='Mode for attention transfer loss')
     parser.add_argument('--at_beta', type=float, default=1.0, help='Beta parameter for attention transfer loss, default None means will be inferred automatically based on mode')
+    parser.add_argument('--use_cached_teacher', action='store_true', help='Use cached teacher logits and feature maps')
     args = parser.parse_args()
 
     # Initialise logger
@@ -122,8 +123,14 @@ def main():
     if teacher is None:
         exit(1)
 
-    teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps = \
-          teacher_model_handler.generate_and_save_teacher_logits_and_feature_maps(trainloader=trainloader, train_dataset=train_dataset)
+    # Default to None, will be set to the logits and feature maps if using cached teacher
+    teacher_logits = None
+    teacher_layer_groups_preactivation_fmaps = None
+    teacher_layer_groups_post_activation_fmaps = None   
+    if args.use_cached_teacher:
+        teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps = \
+            teacher_model_handler.generate_and_save_teacher_logits_and_feature_maps(trainloader=trainloader, train_dataset=train_dataset)        
+        
     del teacher_model_handler # to release references so that memory can be cleared up later
     logger("Teacher model setup completed.")    
     logger("")
