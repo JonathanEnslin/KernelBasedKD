@@ -198,11 +198,11 @@ class ATLoss(nn.Module):
 
 
     def _get_non_cached_pre_activation_fmaps(self, model: BaseModel):
-        return model.get_layer_group_preactivation_feature_maps()
+        return model.get_pre_activation_fmaps()
 
 
     def _get_non_cached_post_activation_fmaps(self, model: BaseModel):
-        return model.get_layer_group_output_feature_maps()
+        return model.get_post_activation_fmaps()
 
 
     @staticmethod

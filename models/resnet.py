@@ -148,11 +148,11 @@ class ResNet(BaseModel):
             layers.append(block(self.inplanes, planes))
 
         # register hook to last conv layer of last block and last bn layer of last block
-        layers[-1].conv2.register_forward_hook(self._group_preactivation_hook_fn)
+        layers[-1].conv2.register_forward_hook(self._group_preact_fmap_hook_fn)
 
         full_layer = nn.Sequential(*layers)
         # register hook
-        full_layer.register_forward_hook(self._group_output_hook_fn)
+        full_layer.register_forward_hook(self._group_postact_fmap_hook_fn)
         return full_layer
 
     def forward(self, x):

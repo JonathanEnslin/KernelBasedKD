@@ -215,15 +215,16 @@
   },
   "params9": {
     "notes": {
-      "source": "Enhancing batch normalized convolutional networks using displaced rectifier linear units: A systematic comparative study",
-      "url": "http://dx.doi.org/10.1016/j.eswa.2019.01.066"
+      "source": "Contrastive Representation Distillation",
+      "url": "https://arxiv.org/abs/1910.10699",
+      "notes": "Values obtained from github repository: https://github.com/HobbitLong/RepDistiller/tree/master, additionally, batch size was increased to 128"
     },
     "optimizer": {
       "type": "SGD",
       "parameters": {
-        "lr": 0.1,
+        "lr": 0.05,
         "momentum": 0.9,
-        "nesterov": true,
+        "nesterov": false,
         "weight_decay": 0.0005
       }
     },
@@ -231,15 +232,16 @@
       {
         "type": "MultiStepLR",
         "parameters": {
-          "gamma": 0.2,
-          "milestones": [60, 80, 90]
+          "gamma": 0.1,
+          "milestones": [150, 180, 210]
         }
       }
     ],
     "training": {
-      "max_epochs": 120,
+      "max_epochs": 240,
       "batch_size": 128,
-      "using_amp": true
+      "using_amp": false
     }
   }
+
 }

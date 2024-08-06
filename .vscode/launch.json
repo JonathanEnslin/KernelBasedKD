@@ -48,10 +48,10 @@
         "--params", "params.json",
         "--param_set", "params3",
         "--model_name", "resnet20",
-        "--run_name", "debug_at",
+        "--run_name", "debug_at_ahhh",
         "--dataset", "CIFAR100",
-        "--at_mode", "zoo",
-        "--at_beta", "10.0",
+        "--at_mode", "impl",
+        "--at_beta", "1000.0",
         "--disable_auto_run_indexing"
       ],
       "env": {

@@ -15,7 +15,7 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /r /c:"IPv4 Address.*192
 
 :: Start TensorBoard
 echo Starting TensorBoard with logdir %LOGDIR% bound to %HOST% on port %PORT%
-echo TensorBoard will be started at http://%HOST%:%PORT%/ or http://%LOCAL_IP%:%PORT%/
+echo TensorBoard will be started at http://127.0.0.1:%PORT%/ or http://%LOCAL_IP%:%PORT%/
 tensorboard --logdir=%LOGDIR% --host=%HOST% --port=%PORT%
 
 endlocal

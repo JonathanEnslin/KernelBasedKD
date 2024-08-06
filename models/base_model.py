@@ -11,8 +11,8 @@ class BaseModel(nn.Module):
     def __init__(self):
         super(BaseModel, self).__init__()
         self.feature_maps = []
-        self.layer_group_output_feature_maps = []
-        self.layer_group_preactivation_feature_maps = []
+        self.pre_activation_fmaps = []
+        self.post_activation_fmaps = []
         self.hook_device_state = "cpu"
         
 
@@ -79,26 +79,26 @@ class BaseModel(nn.Module):
             del cnn_out
     
 
-    def _group_preactivation_hook_fn(self, module, input, output):
+    def _group_preact_fmap_hook_fn(self, module, input, output):
         with torch.no_grad():
             cnn_out = output.detach()
             if self.hook_device_state == "same":
-                self.layer_group_preactivation_feature_maps.append(cnn_out)
+                self.post_activation_fmaps.append(cnn_out)
             elif self.hook_device_state == "cpu":
-                self.layer_group_preactivation_feature_maps.append(cnn_out.cpu())
+                self.post_activation_fmaps.append(cnn_out.cpu())
             elif self.hook_device_state == "cuda":
-                self.layer_group_preactivation_feature_maps.append(cnn_out.cuda())
+                self.post_activation_fmaps.append(cnn_out.cuda())
             del cnn_out
 
-    def _group_output_hook_fn(self, module, input, output):
+    def _group_postact_fmap_hook_fn(self, module, input, output):
         with torch.no_grad():
             cnn_out = output.detach()
             if self.hook_device_state == "same":
-                self.layer_group_output_feature_maps.append(cnn_out)
+                self.pre_activation_fmaps.append(cnn_out)
             elif self.hook_device_state == "cpu":
-                self.layer_group_output_feature_maps.append(cnn_out.cpu())
+                self.pre_activation_fmaps.append(cnn_out.cpu())
             elif self.hook_device_state == "cuda":
-                self.layer_group_output_feature_maps.append(cnn_out.cuda())
+                self.pre_activation_fmaps.append(cnn_out.cuda())
             del cnn_out
 
 
@@ -106,18 +106,18 @@ class BaseModel(nn.Module):
         return self.feature_maps
 
 
-    def get_layer_group_output_feature_maps(self):
-        return self.layer_group_output_feature_maps
+    def get_post_activation_fmaps(self):
+        return self.pre_activation_fmaps
 
 
-    def get_layer_group_preactivation_feature_maps(self):
-        return self.layer_group_preactivation_feature_maps
+    def get_pre_activation_fmaps(self):
+        return self.post_activation_fmaps
     
 
     def _clear_feature_maps_lists(self):
         self.feature_maps = []
-        self.layer_group_output_feature_maps = []
-        self.layer_group_preactivation_feature_maps = []
+        self.pre_activation_fmaps = []
+        self.post_activation_fmaps = []
 
 
     def save(self, path):

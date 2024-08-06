@@ -87,17 +87,16 @@ class ATLoss(nn.Module):
             raise ValueError(f'Invalid mode passed, must be in {"/".join(pre_activation_methods + post_activation_methods)}')
 
         if mode == 'impl':
-            self.at_map_generator = self._generate_attention_maps_flattened_paper
-            self.loss_computer = self._compute_at_loss_paper
-        elif mode == 'paper':
             self.at_map_generator = self._generate_attention_maps_flattened
             self.loss_computer = self._compute_at_loss
+        elif mode == 'paper':
+            self.at_map_generator = self._generate_attention_maps_flattened_paper
+            self.loss_computer = self._compute_at_loss_paper
         elif mode == 'zoo':
             self.at_map_generator = self._generate_attention_map_zoo
             self.loss_computer = self._compute_at_loss_zoo
         elif mode == 'paper_strict':
-            self.at_map_generator = self._generate_attention_maps_flattened_paper
-            self.loss_computer = self._compute_at_loss_paper_normalized_maps
+            raise NotImplementedError("Paper strict mode not implemented yet")
         else:
             raise ValueError(f'Invalid mode passed, must be in {"/".join(pre_activation_methods + post_activation_methods)}')
 
@@ -159,7 +158,8 @@ class ATLoss(nn.Module):
     
 
     def _generate_attention_maps_flattened(self, feature_map, eps=1e-6):
-        return F.normalize(feature_map.pow(2).mean(1).flatten(1), eps=eps)
+        return F.normalize(feature_map.pow(2).mean(1).view(feature_map.size(0), -1), eps=eps) # Hobbit implementation method
+        # return F.normalize(feature_map.pow(2).mean(1).flatten(1), eps=eps)
     
 
     def _generate_attention_maps_flattened_paper(self, feature_map, eps=1e-6):
@@ -217,11 +217,11 @@ class ATLoss(nn.Module):
 
 
     def _get_non_cached_pre_activation_fmaps(self, model: BaseModel):
-        return model.get_layer_group_preactivation_feature_maps()
+        return model.get_pre_activation_fmaps()
 
 
     def _get_non_cached_post_activation_fmaps(self, model: BaseModel):
-        return model.get_layer_group_output_feature_maps()
+        return model.get_post_activation_fmaps()
 
 
     @staticmethod

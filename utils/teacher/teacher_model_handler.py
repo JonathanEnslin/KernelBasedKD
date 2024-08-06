@@ -1,6 +1,7 @@
 import os
 import torch
 import time
+from models.base_model import BaseModel
 
 class TeacherModelHandler:
     """
@@ -32,7 +33,7 @@ class TeacherModelHandler:
 
         self._init_paths()
         self._create_directories()
-        self.teacher = model_class(num_classes=num_classes)
+        self.teacher: BaseModel = model_class(num_classes=num_classes)
 
 
     def load_teacher_model(self):
@@ -69,7 +70,7 @@ class TeacherModelHandler:
         else:
             self._generate_and_save_logits_and_feature_maps(trainloader, train_dataset)
         
-        return self.teacher_logits, self.teacher_pre_activation_feature_maps, self.teacher_layer_group_output_feature_maps
+        return self.teacher_logits, self.teacher_pre_activation_fmaps, self.teacher_post_activation_fmaps
 
 
     def print_paths(self):
@@ -79,7 +80,7 @@ class TeacherModelHandler:
         self.logger(f"Teacher path: {self.teacher_path}")
         self.logger(f"Logits path: {self.logits_path}")
         self.logger(f"Pre-activation feature maps path: {self.pre_activation_feature_maps_path}")
-        self.logger(f"Layer group output feature maps path: {self.layer_group_output_feature_maps_path}")
+        self.logger(f"Post-activation feature maps path: {self.post_activation_fmaps_path}")
 
 
     def _init_paths(self):
@@ -94,7 +95,7 @@ class TeacherModelHandler:
 
         self.feature_maps_subfolder = self.teacher_subfolder
         self.pre_activation_feature_maps_path = os.path.join(self.feature_maps_folder, self.feature_maps_subfolder, f'pre_activation_{self.teacher_file_name}.pt')
-        self.layer_group_output_feature_maps_path = os.path.join(self.feature_maps_folder, self.feature_maps_subfolder, f'post_activation_{self.teacher_file_name}.pt')
+        self.post_activation_fmaps_path = os.path.join(self.feature_maps_folder, self.feature_maps_subfolder, f'post_activation_{self.teacher_file_name}.pt')
 
 
     def _create_directories(self):
@@ -112,7 +113,7 @@ class TeacherModelHandler:
         Returns:
             True if all files exist, False otherwise.
         """
-        return os.path.exists(self.logits_path) and os.path.exists(self.pre_activation_feature_maps_path) and os.path.exists(self.layer_group_output_feature_maps_path)
+        return os.path.exists(self.logits_path) and os.path.exists(self.pre_activation_feature_maps_path) and os.path.exists(self.post_activation_fmaps_path)
 
 
     def _load_existing_logits_and_feature_maps(self):
@@ -122,8 +123,8 @@ class TeacherModelHandler:
         self.logger("Teacher logits and feature map files already exist. Loading...")
         self.teacher_logits, self.teacher_labels = torch.load(self.logits_path)
         self.teacher_logits.to(self.device)
-        self.teacher_pre_activation_feature_maps = torch.load(self.pre_activation_feature_maps_path)
-        self.teacher_layer_group_output_feature_maps = torch.load(self.layer_group_output_feature_maps_path)
+        self.teacher_pre_activation_fmaps = torch.load(self.pre_activation_feature_maps_path)
+        self.teacher_post_activation_fmaps = torch.load(self.post_activation_fmaps_path)
         self.logger("Teacher logits and feature maps loaded")
 
 
@@ -139,7 +140,7 @@ class TeacherModelHandler:
         initial_hook_device_state = self.teacher.get_hook_device_state()
         self.teacher.set_hook_device_state("cpu")
         self.teacher.eval()
-        teacher_logits, teacher_labels, teacher_pre_activation_feature_maps, teacher_layer_group_output_feature_maps = self._initialize_empty_tensors(len(train_dataset))
+        teacher_logits, teacher_labels, teacher_pre_activation_fmaps, teacher_post_activation_fmaps = self._initialize_empty_tensors(len(train_dataset))
         
         batch_durations = []
         
@@ -157,18 +158,18 @@ class TeacherModelHandler:
             
             with torch.no_grad():
                 outputs = self.teacher(inputs)
-                pre_activation_fmaps_for_batch = self.teacher.get_layer_group_preactivation_feature_maps()
-                layer_group_output_fmaps_for_batch = self.teacher.get_layer_group_output_feature_maps()
+                pre_activation_fmaps_for_batch = self.teacher.get_pre_activation_fmaps()
+                post_activation_fmaps_for_batch = self.teacher.get_post_activation_fmaps()
 
-            self._store_batch_results(indices, outputs, labels, pre_activation_fmaps_for_batch, layer_group_output_fmaps_for_batch,
-                                       teacher_logits, teacher_labels, teacher_pre_activation_feature_maps, teacher_layer_group_output_feature_maps)
+            self._store_batch_results(indices, outputs, labels, pre_activation_fmaps_for_batch, post_activation_fmaps_for_batch,
+                                       teacher_logits, teacher_labels, teacher_pre_activation_fmaps, teacher_post_activation_fmaps)
 
         self.teacher_logits = teacher_logits
         self.teacher_labels = teacher_labels
-        self.teacher_pre_activation_feature_maps = teacher_pre_activation_feature_maps
-        self.teacher_layer_group_output_feature_maps = teacher_layer_group_output_feature_maps
+        self.teacher_pre_activation_fmaps = teacher_pre_activation_fmaps
+        self.teacher_post_activation_fmaps = teacher_post_activation_fmaps
         # Save the results
-        self._save_results(teacher_logits, teacher_labels, teacher_pre_activation_feature_maps, teacher_layer_group_output_feature_maps)
+        self._save_results(teacher_logits, teacher_labels, teacher_pre_activation_fmaps, teacher_post_activation_fmaps)
         self.teacher.set_hook_device_state(initial_hook_device_state)
         self.logger("Teacher logits and feature maps generated and saved")
 
@@ -186,8 +187,8 @@ class TeacherModelHandler:
         return ([None] * length, [None] * length, [None] * length, [None] * length)
 
 
-    def _store_batch_results(self, indices, outputs, labels, pre_activation_fmaps_for_batch, layer_group_output_fmaps_for_batch,
-                              teacher_logits, teacher_labels, teacher_pre_activation_feature_maps, teacher_layer_group_output_feature_maps):
+    def _store_batch_results(self, indices, outputs, labels, pre_activation_fmaps_for_batch, post_activation_fmaps_for_batch,
+                              teacher_logits, teacher_labels, teacher_pre_activation_fmaps, teacher_post_activation_fmaps):
         """
         Stores the results of a batch into the corresponding lists.
         
@@ -196,20 +197,20 @@ class TeacherModelHandler:
             outputs: The model outputs for the current batch.
             labels: The labels for the current batch.
             pre_activation_fmaps_for_batch: The pre-activation feature maps for the current batch.
-            layer_group_output_fmaps_for_batch: The post-activation feature maps for the current batch.
+            post_activation_fmaps_for_batch: The post-activation feature maps for the current batch.
             teacher_logits: The list to store the logits.
             teacher_labels: The list to store the labels.
             teacher_pre_activation_feature_maps: The list to store the pre-activation feature maps.
-            teacher_layer_group_output_feature_maps: The list to store the post-activation feature maps.
+            teacher_post_activation_fmaps: The list to store the post-activation feature maps.
         """
         for j, idx in enumerate(indices):
             teacher_logits[idx] = outputs[j]
             teacher_labels[idx] = labels[j]
-            teacher_pre_activation_feature_maps[idx] = [fmap[j] for fmap in pre_activation_fmaps_for_batch]
-            teacher_layer_group_output_feature_maps[idx] = [fmap[j] for fmap in layer_group_output_fmaps_for_batch]
+            teacher_pre_activation_fmaps[idx] = [fmap[j] for fmap in pre_activation_fmaps_for_batch]
+            teacher_post_activation_fmaps[idx] = [fmap[j] for fmap in post_activation_fmaps_for_batch]
 
 
-    def _save_results(self, teacher_logits, teacher_labels, teacher_pre_activation_feature_maps, teacher_layer_group_output_feature_maps):
+    def _save_results(self, teacher_logits, teacher_labels, teacher_pre_activation_fmaps, teacher_post_activation_fmaps):
         """
         Saves the generated logits and feature maps to files.
         
@@ -217,10 +218,10 @@ class TeacherModelHandler:
             teacher_logits: The logits to save.
             teacher_labels: The labels to save.
             teacher_pre_activation_feature_maps: The pre-activation feature maps to save.
-            teacher_layer_group_output_feature_maps: The post-activation feature maps to save.
+            teacher_post_activation_fmaps: The post-activation feature maps to save.
         """
         teacher_logits = torch.stack(teacher_logits)
         teacher_logits.to(self.device)
         torch.save((teacher_logits, teacher_labels), self.logits_path)
-        torch.save(teacher_pre_activation_feature_maps, self.pre_activation_feature_maps_path)
-        torch.save(teacher_layer_group_output_feature_maps, self.layer_group_output_feature_maps_path)
+        torch.save(teacher_pre_activation_fmaps, self.pre_activation_feature_maps_path)
+        torch.save(teacher_post_activation_fmaps, self.post_activation_fmaps_path)
