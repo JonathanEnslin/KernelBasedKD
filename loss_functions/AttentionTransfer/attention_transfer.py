@@ -135,7 +135,7 @@ class ATLoss(nn.Module):
         # Get the teacher feature maps
         teacher_feature_maps = self.get_teacher_feature_maps(indices=indices, features=features)
         # Get the student feature maps
-        student_feature_maps = self.non_cached_feature_map_getter(self.student)
+        student_feature_maps = self.non_cached_feature_map_getter(self.student, detached=False)
         
         # Create the feature map pairs
         feature_map_pairs = list(zip(student_feature_maps, teacher_feature_maps))
@@ -216,12 +216,12 @@ class ATLoss(nn.Module):
         return self.non_cached_feature_map_getter(self.teacher)
 
 
-    def _get_non_cached_pre_activation_fmaps(self, model: BaseModel):
-        return model.get_pre_activation_fmaps()
+    def _get_non_cached_pre_activation_fmaps(self, model: BaseModel, detached=True):
+        return model.get_pre_activation_fmaps(detached=detached)
 
 
-    def _get_non_cached_post_activation_fmaps(self, model: BaseModel):
-        return model.get_post_activation_fmaps()
+    def _get_non_cached_post_activation_fmaps(self, model: BaseModel, detached=True):
+        return model.get_post_activation_fmaps(detached=detached)
 
 
     @staticmethod

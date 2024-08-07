@@ -8,7 +8,7 @@ from models.resnet import resnet20, resnet32, resnet56, resnet110
 # Define dataset and transformations
 dataset = 'CIFAR100'
 # Path to the saved model
-model_path = 'C:/Users/jonat/OneDrive/UNIV stuff/CS4/COS700/Dev/KernelBasedKD/resnet56_cifar100_the_last_hope_2_oof.pth'
+model_path = 'teacher_models/models/resnet56/resnet56_params3_CIFAR100_1_00025.pth'
 model_name = 'resnet56'  # Change this according to your model
 
 if __name__ == '__main__':

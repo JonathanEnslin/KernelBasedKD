@@ -4,7 +4,7 @@ from sklearn.metrics import f1_score
 from utils.log_utils import create_log_entry, log_to_csv
 
 class TestStep:
-    def __init__(self, model, testloader, criterion, device, writer, csv_file, start_time, autocast, logger=print):
+    def __init__(self, model, testloader, criterion, device, writer, csv_file, start_time, autocast, logger=print, for_vali=False):
         self.model = model
         self.testloader = testloader
         self.criterion = criterion
@@ -14,6 +14,7 @@ class TestStep:
         self.start_time = start_time
         self.autocast = autocast
         self.logger = logger
+        self.for_vali = for_vali
 
     def __call__(self, epoch):
         self.model.eval()
@@ -51,13 +52,16 @@ class TestStep:
         f1 = f1_score(all_labels.numpy(), all_preds.numpy(), average='macro')
         top5_error = 100 * (1 - top5_correct / total_samples)
 
+        # Print the test accuracy
+        self.logger(f'--> Test accuracy: {accuracy:.2f}%')
+        
+        if self.for_vali:
+            return
+
         self.writer.add_scalar('test_loss', epoch_loss, epoch)
         self.writer.add_scalar('test_accuracy', accuracy, epoch)
         self.writer.add_scalar('test_f1_score', f1, epoch)
         self.writer.add_scalar('test_top5_error', top5_error, epoch)
-
-        # Print the test accuracy
-        self.logger(f'--> Test accuracy: {accuracy:.2f}%')
 
         log_entry = create_log_entry(epoch, 'test', epoch_loss, accuracy, f1, self.start_time, self.device, top5_error)
         log_to_csv(self.csv_file, log_entry)

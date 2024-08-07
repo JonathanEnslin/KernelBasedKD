@@ -130,7 +130,7 @@ def main():
     # Load and cache teacher model data
     logger("Setting up teacher model")
     teacher_model_handler = TeacherModelHandler(model_class=resnet56,
-                                                teacher_file_name="resnet56_params3_CIFAR100_1_00025.pth",
+                                                teacher_file_name=args.teacher_fname,
                                                 device=device,
                                                 num_classes=num_classes,
                                                 printer=print)
@@ -216,6 +216,10 @@ def main():
     if not args.use_val or not args.disable_test:
         test_step = TestStep(model, testloader, test_val_criterion, device, writer, csv_file, start_time, autocast, logger=logger)
         # test_step = TestStep(model, testloader, criterion, device, writer, csv_file, start_time)
+
+    vali_test_step = TestStep(teacher, testloader, test_val_criterion, device, writer, csv_file, start_time, autocast, logger=logger, for_vali=True)
+    print("Validating test acc of teacher model")
+    vali_test_step(1)
 
     # Main training loop
     times_at_epoch_end = []

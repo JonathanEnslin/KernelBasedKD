@@ -67,51 +67,31 @@ class BaseModel(nn.Module):
         recursive_find_conv_layers(model)
         return conv_layers
 
-    
-    def _feature_map_hook_fn(self, module, input, output):
-        with torch.no_grad():
-            cnn_out = output.detach()
-            if self.hook_device_state == "same":
-                self.feature_maps.append(cnn_out)
-            elif self.hook_device_state == "cpu":
-                self.feature_maps.append(cnn_out.cpu())
-            elif self.hook_device_state == "cuda":
-                self.feature_maps.append(cnn_out.cuda())
-            del cnn_out
-    
 
-    def _group_preact_fmap_hook_fn(self, module, input, output):
-        with torch.no_grad():
-            cnn_out = output.detach()
-            if self.hook_device_state == "same":
-                self.post_activation_fmaps.append(cnn_out)
-            elif self.hook_device_state == "cpu":
-                self.post_activation_fmaps.append(cnn_out.cpu())
-            elif self.hook_device_state == "cuda":
-                self.post_activation_fmaps.append(cnn_out.cuda())
-            del cnn_out
-
-    def _group_postact_fmap_hook_fn(self, module, input, output):
-        with torch.no_grad():
-            cnn_out = output.detach()
-            if self.hook_device_state == "same":
-                self.pre_activation_fmaps.append(cnn_out)
-            elif self.hook_device_state == "cpu":
-                self.pre_activation_fmaps.append(cnn_out.cpu())
-            elif self.hook_device_state == "cuda":
-                self.pre_activation_fmaps.append(cnn_out.cuda())
-            del cnn_out
-
-
-    def get_feature_maps(self):
+    def get_feature_maps(self, detached=False):
+        if detached:
+            return self._detach_list(self.feature_maps)
         return self.feature_maps
 
 
-    def get_post_activation_fmaps(self):
+    def get_post_activation_fmaps(self, detached=False):
+        if detached:
+            return self._detach_list(self.post_activation_fmaps)
         return self.pre_activation_fmaps
 
 
-    def get_pre_activation_fmaps(self):
+    def _detach_list(self, list):
+        if self.hook_device_state == "same":
+            return [item.detach() for item in list]
+        elif self.hook_device_state == "cpu":
+            return [item.cpu().detach() for item in list]
+        else:
+            return [item.cuda().detach() for item in list]
+
+
+    def get_pre_activation_fmaps(self, detached=False):
+        if detached:
+            return self._detach_list(self.pre_activation_fmaps)
         return self.post_activation_fmaps
     
 
