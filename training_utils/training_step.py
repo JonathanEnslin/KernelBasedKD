@@ -27,7 +27,11 @@ class TrainStep:
         all_preds = []
         top5_correct = 0
         total_samples = 0  # Keep track of the total number of samples
+        running_time1 = 0.0
+        running_time2 = 0.0
+        running_time3 = 0.0
         for i, (inputs, labels, indices) in enumerate(self.trainloader):
+            start_time1 = time.time()
             inputs, labels = inputs.to(self.device), labels.to(self.device)
             total_samples += labels.size(0)
             
@@ -39,11 +43,14 @@ class TrainStep:
                     loss = self.criterion(outputs, labels, features=inputs, indices=indices)
                 else:
                     loss = self.criterion(outputs, labels)
-            
+            running_time1 += time.time() - start_time1
+            start_time2 = time.time()
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
+            running_time2 += time.time() - start_time2
             
+            start_time3 = time.time()
             running_loss += loss.item()
             
             _, predicted = torch.max(outputs, 1)
@@ -59,6 +66,12 @@ class TrainStep:
                 self.logger(f'[Epoch {epoch+1}, Batch {i}/{len(self.trainloader) - 1}] Loss: {avg_loss:.3f}')
                 self.writer.add_scalar('training_loss', avg_loss, epoch * len(self.trainloader) + i)
                 
+            running_time3 += time.time() - start_time3
+            # if i % 100 == 0:
+            #     print(i, "======================================================")
+            #     print(f"Time taken for forward pass: {running_time1:.2f}s")
+            #     print(f"Time taken for backward pass: {running_time2:.2f}s")
+            #     print(f"Time taken for metric calculations: {running_time3:.2f}s")
         # Step the schedulers
         for scheduler in self.schedulers:
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):

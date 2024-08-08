@@ -75,12 +75,15 @@ def get_data_loaders(args, params, dataset, run_name, transform_train, transform
     use_persistent_workers = args.num_workers > 0 and not args.disable_persistent_workers
     trainloader = DataLoader(trainset, batch_size=params['training']['batch_size'], shuffle=True, num_workers=args.num_workers, pin_memory=True, persistent_workers=use_persistent_workers)
     
+    test_num_workers = args.num_workers // 2
+    test_persistent_workers = test_num_workers > 0 and not args.disable_test
+    test_batch_size = params['training']['batch_size']
     if args.use_val:
-        valloader = DataLoader(valset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2 if args.num_workers > 0 else 0, pin_memory=True, persistent_workers=use_persistent_workers)
+        valloader = DataLoader(valset, batch_size=test_batch_size//2, shuffle=False, num_workers=test_num_workers, pin_memory=True, persistent_workers=test_persistent_workers)
     
     if not args.use_val or not args.disable_test:
         testset = dataset_class(root=args.dataset_dir, train=False, download=True, transform=transform_test)
-        testloader = DataLoader(testset, batch_size=params['training']['batch_size'], shuffle=False, num_workers=2 if args.num_workers > 0 else 0, pin_memory=True, persistent_workers=use_persistent_workers)
+        testloader = DataLoader(testset, batch_size=test_batch_size//2, shuffle=False, num_workers=test_num_workers, pin_memory=True, persistent_workers=test_persistent_workers)
     
     return trainloader, valloader, testloader, val_split_random_state
 

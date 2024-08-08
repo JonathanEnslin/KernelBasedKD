@@ -5,6 +5,8 @@ import torch.cuda.amp as amp
 import argparse
 import os
 from datetime import datetime
+import numpy as np
+import random
 
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
 import utils.miscellaneous
@@ -34,6 +36,15 @@ def fmt_duration(duration):
     seconds = duration % 60
     ms = (duration - int(duration)) * 1000
     return f"{int(hours)}h {int(minutes)}m {int(seconds)}s {int(ms)}ms"
+
+def set_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    np.random.seed(seed)  # Numpy module.
+    random.seed(seed)  # Python random module.
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
 def main():
     parser = argparse.ArgumentParser(description="Training script for NN")
@@ -79,6 +90,11 @@ def main():
 
     # Initialise logger
     logger = logger
+
+    # Set the seed
+    # set_seed(112)
+    # 
+    
 
     # Load the training parameters
     params = load_params(args.params, args.param_set)

@@ -51,12 +51,12 @@
           "--model_name", "resnet20",
           "--checkpoint_freq", "60",
           "--dataset", "CIFAR100",
-          "--device", "cuda",
-          "--num_workers", "2",
-          "--run_name", "at_new_setup_test",
+          "--device", "cpu",
+          "--num_workers", "0",
+          "--run_name", "debug_at",
           "--at_mode", "impl",
           "--at_beta", "1000.0",
-          "--teacher_fname", "resnet56_cifar100_72p61.pth"
+          "--teacher_fname", "C:/Users/jonat/OneDrive/UNIV stuff/CS4/COS700/Dev/KernelBasedKD/teacher_models/models/resnet56/resnet56_cifar100_73p18.pth"
       ],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"

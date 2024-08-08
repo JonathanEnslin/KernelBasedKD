@@ -28,7 +28,34 @@
       }
     ],
     "training": {
-      "max_epochs": 120,
+      "max_epochs": 110,
+      "batch_size": 128
+    }
+  },
+  "params3b": {
+    "notes": {
+      "notes": "Same as params3 but with nesterov set to false"
+    },
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "lr": 0.1,
+        "momentum": 0.9,
+        "nesterov": false,
+        "weight_decay": 0.0005
+      }
+    },
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.2,
+          "milestones": [60, 80, 90]
+        }
+      }
+    ],
+    "training": {
+      "max_epochs": 110,
       "batch_size": 128
     }
   },
