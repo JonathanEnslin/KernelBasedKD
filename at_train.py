@@ -9,6 +9,7 @@ import numpy as np
 import random
 
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
+import utils.config_printer
 import utils.miscellaneous
 from utils.param_utils import load_params
 from utils.model_utils import initialize_model, get_optimizer, get_schedulers
@@ -26,6 +27,10 @@ from models.resnet import resnet56
 from utils.data.indexed_dataset import IndexedCIFAR10, IndexedCIFAR100
 from utils.teacher.teacher_model_handler import TeacherModelHandler
 from utils.amp_grad_scaling_handler import get_amp_and_grad_scaler
+from utils.config_printer import ConfigPrinter
+import utils.miscellaneous as misc
+from utils.logger import Logger
+import utils
 
 
 import utils
@@ -50,29 +55,32 @@ def main():
     parser = argparse.ArgumentParser(description="Training script for NN")
     parser.add_argument('--params', type=str, required=True, help='Path to the params.json file')
     parser.add_argument('--param_set', type=str, required=True, help='Name of the parameter set to use')
-    parser.add_argument('--resume', type=str, default='', help='Path to the checkpoint file to resume training')
     parser.add_argument('--model_name', type=str, required=True, help='Model name (resnet20, resnet56, resnet110...)')
+    parser.add_argument('--dataset', type=str, required=True, choices=['CIFAR10', 'CIFAR100'], help='Dataset to use (CIFAR10 or CIFAR100)')
+    parser.add_argument('--resume', type=str, help='Path to the checkpoint file to resume training')
     parser.add_argument('--run_name', type=str, default='', help='Optional run name to overwrite the generated name')
     parser.add_argument('--checkpoint_dir', type=str, default='run_data/checkpoints', help='Directory to save checkpoints')
     parser.add_argument('--checkpoint_freq', type=int, default=10, help='Frequency of checkpoint saving in epochs')
-    parser.add_argument('--use_val', action='store_true', help='Use a validation set')
-    parser.add_argument('--val_size', type=float, default=0.2, help='Proportion of training data used for validation set (0 < val_size < 1)')
-    parser.add_argument('--disable_test', action='store_true', help='Disable the test set if validation set is used')
+    parser.add_argument('--disable_auto_run_indexing', action='store_true', help='Disable automatic run indexing (i.e. _run1, _run2, etc.)')
     parser.add_argument('--csv_dir', type=str, default='run_data/csv_logs', help='Directory to save CSV logs')
-    parser.add_argument('--early_stopping_patience', type=int, help='Patience for early stopping')
-    parser.add_argument('--early_stopping_start_epoch', type=int, help='Start early stopping after this many epochs')
     parser.add_argument('--dataset_dir', type=str, default='data', help='Directory of the dataset (default is data)')
-    parser.add_argument('--dataset', type=str, required=True, choices=['CIFAR10', 'CIFAR100'], help='Dataset to use (CIFAR10 or CIFAR100)')
     parser.add_argument('--model_save_dir', type=str, default='run_data/trained_models', help='Directory to save trained models')
     parser.add_argument('--device', type=str, default='cuda', choices=["cpu", "cuda"] , help='Device to use (cpu or cuda)')
+    parser.add_argument('--use_amp', action='store_true', help='Use Automatic Mixed Precision (AMP) and Gradient Scaling (Warning: may cause gradient under/overflow, use carefully)')
+    parser.add_argument('--disable_test', action='store_true', help='Disable the test set if validation set is used')
+    parser.add_argument('--disable_test_until_epoch', type=int, default=0, help='Disable the test set until this epoch')
+    # ==================== ARGS RELATED TO VALIDATION TRAINING ====================
+    parser.add_argument('--use_val', action='store_true', help='Use a validation set')
+    parser.add_argument('--val_size', type=float, help='Proportion of training data used for validation set (0 < val_size < 1)')
+    parser.add_argument('--early_stopping_patience', type=int, help='Patience for early stopping')
+    parser.add_argument('--early_stopping_start_epoch', type=int, help='Start early stopping after this many epochs')
     parser.add_argument('--track_best_after_epoch', type=int, default=10, help='Number of epochs to wait before starting to track the best model (Only enabled when using validation set)')
     parser.add_argument('--val_split_random_state', type=int, default=None, help='Random state for the validation split')
     parser.add_argument('--use_split_indices_from_file', type=str, default=None, help='Path to a file containing indices for the train and validation split')
-    parser.add_argument('--disable_auto_run_indexing', action='store_true', help='Disable automatic run indexing (i.e. _run1, _run2, etc.)')
-    parser.add_argument('--use_amp', action='store_true', help='Use Automatic Mixed Precision (AMP) and Gradient Scaling (Warning: may cause gradient under/overflow, use carefully)')
-    parser.add_argument('--disable_test_until_epoch', type=int, default=0, help='Disable the test set until this epoch')
+    # ==================== ARGS RELATED TO DATA LOADING ====================
     parser.add_argument('--num_workers', type=int, default=2, help='Number of workers for the DataLoader')
     parser.add_argument('--disable_persistent_workers', action='store_true', help='Disables using persistent workers for the DataLoader')
+    # ======================================================================
     # AT Params below
     parser.add_argument('--at_mode', type=str, default='impl', choices=['impl', 'paper', 'zoo'], help='Mode for attention transfer loss')
     parser.add_argument('--at_beta', type=float, default=1.0, help='Beta parameter for attention transfer loss, default None means will be inferred automatically based on mode')
@@ -83,19 +91,13 @@ def main():
     # Get the run name
     run_name = config_utils.get_run_name(args)
 
-    def logger(*args, **kwargs):
-        print(*args, **kwargs)
-        with open(f"./run_data/output_logs/{run_name}.log", "a") as f:
-            print(*args, **kwargs, file=f)
-
     # Initialise logger
-    logger = logger
+    logger = Logger(run_name, log_to_file=True, log_dir="./run_data/output_logs")
 
     # Set the seed
     # set_seed(112)
     # 
     
-
     # Load the training parameters
     params = load_params(args.params, args.param_set)
 
@@ -113,19 +115,15 @@ def main():
     scaler, autocast = get_amp_and_grad_scaler(args, device, logger=logger)
 
     # if validation set is not used, print that track best and early stopping are disabled (if they are specified)
-    if not args.use_val:
-        if args.early_stopping_patience is not None:
-            logger("Warning: Early stopping is disabled because validation set is not used.")
-        elif args.early_stopping_start_epoch is not None:
-            logger("Warning: Early stopping is disabled because validation set is not used.")
-        if args.track_best_after_epoch is not None:
-            logger("Warning: Best model tracking is disabled because validation set is not used.")
+    if not misc.check_validation_args(args, logger=logger):
+        logger("===> Validation arguments are not correctly specified. Exiting.")
+        exit(1)
 
-    logger(f"-------> Using run name: {run_name}")
+    logger(f"===> Using run name: {run_name}", col='cyan')
 
     csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
 
-    config_utils.print_config(params, run_name, args, device, logger=logger)
+    utils.config_printer.ConfigPrinter(args, params, logger, run_name=run_name, actual_device=device).print_all()
 
     # Get the dataset info
     dataset_class, num_classes, transform_train, transform_test = get_dataset_info(args.dataset, logger=logger)
