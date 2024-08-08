@@ -114,6 +114,3 @@ if __name__ == "__main__":
 
     printer = ConfigPrinter(args, params, additional_param1='value1', additional_param2='value2', whatlol=4, squawk='squawk')
     printer.print_all()
-    # pretty print params
-    import json
-    self.logger(json.dumps(params, indent=4))

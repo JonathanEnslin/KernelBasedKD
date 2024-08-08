@@ -231,7 +231,7 @@ def main():
         test_step = TestStep(model, testloader, test_val_criterion, device, writer, csv_file, start_time, autocast, logger=logger)
         # test_step = TestStep(model, testloader, criterion, device, writer, csv_file, start_time)
 
-    vali_test_step = TestStep(teacher, testloader, test_val_criterion, device, writer, csv_file, start_time, autocast, logger=logger, for_vali=True)
+    vali_test_step = TestStep(teacher, testloader, test_val_criterion, device, writer, csv_file, start_time, autocast, logger=logger, no_write=True)
     print("Validating test acc of teacher model")
     vali_test_step(1)
 
