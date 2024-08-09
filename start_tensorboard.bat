@@ -2,7 +2,7 @@
 setlocal
 
 :: Set the log directory
-set LOGDIR=runs
+set LOGDIR=run_data/tensorboard
 
 :: Set the host to bind TensorBoard to
 set HOST=0.0.0.0

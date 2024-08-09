@@ -2,17 +2,23 @@ import os
 from torch.utils.data import DataLoader, random_split
 import utils.data.dataset_splitter as dataset_splitter
 
-def get_run_name(args):
-        # Generate or use provided run name
-    run_name_base = args.run_name or f"{args.model_name}_{args.param_set}_{args.dataset}"
+def get_run_name(args, kd_type=None):
+    # Generate or use provided run name
+    val_tag = ".val" if args.use_val else ""
+    kd_tag = f".{kd_type}" if kd_type is not None else ""
+    auto_name = f"{args.model_name}@{args.dataset}_{args.param_set}{kd_tag}"
+    run_name_base = args.run_name or auto_name
     if not args.disable_auto_run_indexing:
-        run_name = run_name_base + "_run1"
+        run_name = run_name_base + "_#1"
         run_counter = 2
         while os.path.exists(os.path.join(args.csv_dir, f"{run_name}_metrics.csv")):
-            run_name = f"{run_name_base}_run{run_counter}"
+            run_name = f"{run_name_base}_#{run_counter}"
             run_counter += 1
     else:
         run_name = run_name_base
+
+    if args.run_name is not None:
+        run_name  = run_name + val_tag
 
     # If resuming training, use the run name from the checkpoint file or the provided run name
     if args.resume:
@@ -89,7 +95,4 @@ def get_data_loaders(args, params, dataset, run_name, transform_train, transform
 
 
 def get_writer_name(kd_mode, args, run_name):
-    if kd_mode is not None or kd_mode != "":
-        return f"runs/{kd_mode}/{args.dataset}/{run_name}"
-    else:
-        return f"runs/{args.dataset}/{run_name}"
+    return f"run_data/tensorboard/{kd_mode}/{args.model_name}/{args.dataset}/{run_name}"

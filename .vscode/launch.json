@@ -9,13 +9,13 @@
       "console": "integratedTerminal",
       "args": [
         "--params", "params.json",
-        "--param_set", "params11",
-        "--model_name", "resnet56",
-        "--checkpoint_freq", "60",
+        "--param_set", "params3",
+        "--model_name", "resnet20",
+        "--checkpoint_freq", "6000",
         "--dataset", "CIFAR100",
         "--device", "cuda",
-        "--disable_test_until_epoch", "148",
-        "--num_workers", "4"
+        "--disable_test_until_epoch", "0",
+        "--num_workers", "0"
       ],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
