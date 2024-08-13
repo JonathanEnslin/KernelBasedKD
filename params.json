@@ -250,7 +250,7 @@
       }
     ],
     "training": {
-      "max_epochs": 180,
+      "max_epochs": 165,
       "batch_size": 128
     }
   },
@@ -277,7 +277,7 @@
       }
     ],
     "training": {
-      "max_epochs": 180,
+      "max_epochs": 165,
       "batch_size": 256
     }
   }

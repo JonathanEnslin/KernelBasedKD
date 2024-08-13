@@ -2,7 +2,12 @@ import csv
 import os
 from datetime import datetime
 
+def get_csv_name(run_name, phase):
+    return f"{run_name}.{phase}.csv"
+
 def log_to_csv(file_path, data):
+    phase = data.get('phase', None)
+
     file_exists = os.path.isfile(file_path)
     with open(file_path, 'a', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=data.keys())

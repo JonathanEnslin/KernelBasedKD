@@ -1,9 +1,15 @@
 import torch
 
 def initialize_model(model_name, num_classes, device, logger=print):
-    if model_name == 'resnet20':
+    if model_name == 'resnet8':
+        from models.resnet import resnet8
+        model = resnet8(num_classes=num_classes).to(device)
+    elif model_name == 'resnet20':
         from models.resnet import resnet20
         model = resnet20(num_classes=num_classes).to(device)
+    elif model_name == 'resnet32':
+        from models.resnet import resnet32
+        model = resnet32(num_classes=num_classes).to(device)
     elif model_name == 'resnet56':
         from models.resnet import resnet56
         model = resnet56(num_classes=num_classes).to(device)
@@ -16,6 +22,12 @@ def initialize_model(model_name, num_classes, device, logger=print):
     elif model_name == 'dummy_teacher':
         from models.dummy_teacher_model import DummyTeacherModel
         model = DummyTeacherModel(3, 100).to(device)
+    elif model_name == 'resnet8x4':
+        from models.resnet import resnet8x4
+        model = resnet8x4(num_classes=num_classes).to(device)
+    elif model_name == 'resnet32x4':
+        from models.resnet import resnet32x4
+        model = resnet32x4(num_classes=num_classes).to(device)
     else:
         logger(f"Unknown model name {model_name}")
         return None

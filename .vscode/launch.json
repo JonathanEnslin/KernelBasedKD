@@ -9,13 +9,16 @@
       "console": "integratedTerminal",
       "args": [
         "--params", "params.json",
-        "--param_set", "params3",
+        "--param_set", "params10",
         "--model_name", "resnet20",
-        "--checkpoint_freq", "6000",
-        "--dataset", "CIFAR100",
+        "--checkpoint_freq", "99999",
+        "--dataset", "CIFAR10",
         "--device", "cuda",
         "--disable_test_until_epoch", "0",
-        "--num_workers", "0"
+        "--num_workers", "0",
+        // "--csv_dir", "debug_output/csv_logs",
+        // "--run_name", "debug_train",
+        "--model_save_dir", "debug_output/models",
       ],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"

@@ -2,7 +2,7 @@ import os
 from torch.utils.data import DataLoader, random_split
 import utils.data.dataset_splitter as dataset_splitter
 
-def get_run_name(args, kd_type=None):
+def get_run_name(args, kd_type=None, run_tag=None):
     # Generate or use provided run name
     val_tag = ".val" if args.use_val else ""
     kd_tag = f".{kd_type}" if kd_type is not None else ""
@@ -24,6 +24,7 @@ def get_run_name(args, kd_type=None):
     if args.resume:
         run_name = args.run_name or os.path.basename(args.resume).split('_epoch')[0]
     return run_name
+
 
 
 def print_config(params, run_name, args, device, logger=print):

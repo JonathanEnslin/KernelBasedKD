@@ -1,6 +1,7 @@
 import re
 import json
 import os
+import loss_functions as lf
 
 def get_distillation_params(params_file: str, param_set: str, logger=print, base_path='configs') -> dict:
     params_path = os.path.join(base_path, params_file)
@@ -17,4 +18,14 @@ def get_distillation_params(params_file: str, param_set: str, logger=print, base
     except Exception as e:
         logger(f"Error loading params from {params_path}: {e}")
         return None
+
+
+loss_function_map = {
+    "vanilla": lf.vanilla.VanillaKDLoss,
+    "at": lf.attention_transfer.ATLoss,
+    "filter_at": lf.filter_at.FilterAttentionTransfer,
+}
+
+
+
 

@@ -22,7 +22,7 @@ from training_utils.training_step import TrainStep
 from training_utils.validation_step import ValidationStep
 from training_utils.testing_step import TestStep
 
-from loss_functions.AttentionTransfer.attention_transfer import ATLoss
+from loss_functions.attention_transfer import ATLoss
 from models.resnet import resnet56
 from utils.data.indexed_dataset import IndexedCIFAR10, IndexedCIFAR100
 from utils.teacher.teacher_model_handler import TeacherModelHandler
@@ -92,7 +92,7 @@ def main():
     run_name = config_utils.get_run_name(args)
 
     # Initialise logger
-    logger = Logger(run_name, log_to_file=True, log_dir="./run_data/output_logs")
+    logger = Logger(run_name, log_to_file=True, data_dir="./run_data/output_logs")
 
     # Set the seed
     # set_seed(112)

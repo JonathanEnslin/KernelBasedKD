@@ -18,10 +18,12 @@ from utils.best_model_tracker import BestModelTracker
 from utils.data.dataset_getters import get_cifar100_transforms, get_cifar10_transforms, get_dataset_info
 import utils.config_utils as config_utils
 
-from training_utils.training_step import TrainStep
+from training_utils.training_step_alt import TrainStep, LossHandler
+# from training_utils.training_step import TrainStep
 from training_utils.validation_step import ValidationStep
 from training_utils.testing_step import TestStep
 
+import loss_functions as lf
 from loss_functions.attention_transfer import ATLoss
 from models.resnet import resnet56
 from utils.data.indexed_dataset import IndexedCIFAR10, IndexedCIFAR100
@@ -53,7 +55,7 @@ def set_seed(seed):
 
 def main():
     parser = argparse.ArgumentParser(description="Training script for NN")
-    parser.add_argument('--params', type=str, required=True, help='Path to the params.json file')
+    parser.add_argument('--params', type=str, required=True, help='Path to the hyperparameter file')
     parser.add_argument('--param_set', type=str, required=True, help='Name of the parameter set to use')
     parser.add_argument('--model_name', type=str, required=True, help='Model name (resnet20, resnet56, resnet110...)')
     parser.add_argument('--dataset', type=str, required=True, choices=['CIFAR10', 'CIFAR100'], help='Dataset to use (CIFAR10 or CIFAR100)')
@@ -69,6 +71,7 @@ def main():
     parser.add_argument('--use_amp', action='store_true', help='Use Automatic Mixed Precision (AMP) and Gradient Scaling (Warning: may cause gradient under/overflow, use carefully)')
     parser.add_argument('--disable_test', action='store_true', help='Disable the test set if validation set is used')
     parser.add_argument('--disable_test_until_epoch', type=int, default=0, help='Disable the test set until this epoch')
+    parser.add_argument('--output_data_dir', type=str, default='run_data', help='Directory to save the run data')
     # ==================== ARGS RELATED TO VALIDATION TRAINING ====================
     parser.add_argument('--use_val', action='store_true', help='Use a validation set')
     parser.add_argument('--val_size', type=float, help='Proportion of training data used for validation set (0 < val_size < 1)')
@@ -80,16 +83,21 @@ def main():
     # ==================== ARGS RELATED TO DATA LOADING ====================
     parser.add_argument('--num_workers', type=int, default=2, help='Number of workers for the DataLoader')
     parser.add_argument('--disable_persistent_workers', action='store_true', help='Disables using persistent workers for the DataLoader')
-    # ======================================================================
+    # ==================== KD RELATED ARGS ====================
+    parser.add_argument('--kd_params', type=str, required=False, help='Path to the knowledge distillation config file')
+    parser.add_argument('--kd_set', type=str, required=False, help='The KD set to use')
+    parser.add_argument('--teacher_path', type=str, required=False, help='Path to the teacher model')
+    parser.add_argument('--use_cached_teacher', action='store_true')
 
     args = parser.parse_args()
 
 
     # Initialise logger
-    logger = Logger(args, log_to_file=True, data_dir="./run_data/", kd_method='base')
+    logger = Logger(args, log_to_file=True, data_dir=args.output_data_dir, kd_method='base')
     # Get the run name
     run_name = logger.get_run_name()
-    print(run_name)
+    logger(f"===> Using run name: {run_name}", col='cyan')
+    
 
     # Set the seed
     # set_seed(112)
@@ -98,9 +106,8 @@ def main():
     # Load the training parameters
     params = load_params(args.params, args.param_set)
 
-    # Check that model_save_dir, checkpoint_dir, and csv_dir are valid directories
-    # if they do not exist, create them, if they can not be created print an error message and exit gracefully
-    if not utils.miscellaneous.ensure_dir_existence([args.model_save_dir, args.checkpoint_dir], logger=logger):
+    # Enesure the necessary dirs exist
+    if not utils.miscellaneous.ensure_dir_existence([args.model_save_dir, args.checkpoint_dir, args.output_data_dir], logger=logger):
         exit(1)
 
     # Set the device
@@ -113,12 +120,9 @@ def main():
 
     # if validation set is not used, print that track best and early stopping are disabled (if they are specified)
     if not misc.check_validation_args(args, logger=logger):
-        logger("===> Validation arguments are not correctly specified. Exiting.")
+        logger("===> Validation arguments are not correctly specified. Exiting.", col='red')
         exit(1)
 
-    logger(f"===> Using run name: {run_name}", col='cyan')
-
-    csv_file = os.path.join(args.csv_dir, f"{run_name}_metrics.csv")
 
     utils.config_printer.ConfigPrinter(args, params, logger, run_name=run_name, actual_device=device).print_all()
     logger("")
@@ -139,8 +143,34 @@ def main():
     if model is None:
         exit(1)
 
+
+    # Load and cache teacher model data
+    logger("Setting up teacher model")
+    teacher_model_handler = TeacherModelHandler(model_class=resnet56,
+                                                teacher_file_name=args.teacher_path,
+                                                device=device,
+                                                num_classes=num_classes,
+                                                printer=print)
+    
+    teacher = teacher_model_handler.load_teacher_model()
+    if teacher is None:
+        exit(1)
+
+    # Default to None, will be set to the logits and feature maps if using cached teacher
+    teacher_logits = None
+    teacher_layer_groups_preactivation_fmaps = None
+    teacher_layer_groups_post_activation_fmaps = None   
+    if args.use_cached_teacher:
+        teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps = \
+            teacher_model_handler.generate_and_save_teacher_logits_and_feature_maps(trainloader=trainloader, train_dataset=train_dataset)        
+        
+    del teacher_model_handler # to release references so that memory can be cleared up later
+    logger("Teacher model setup completed.")    
+    logger("")
+
     # Set up loss functions
     criterion = nn.CrossEntropyLoss()
+    vanilla_criterion = lf.vanilla.VanillaKDLoss(4.0, teacher_logits)
     test_val_criterion = nn.CrossEntropyLoss()    
 
     # Restore hook states to their ideal values
@@ -187,15 +217,15 @@ def main():
     if args.resume:
         start_epoch = load_checkpoint(model, optimizer, schedulers, scaler, filename=args.resume, logger=logger)
 
-    train_step = TrainStep(model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, autocast, is_kd=False, logger=logger)
-    if args.use_val:
-        validation_step = ValidationStep(model, valloader, test_val_criterion, device, writer, csv_file, start_time, autocast, early_stopping, best_model_tracker, logger=logger)
-        # validation_step = ValidationStep(model, valloader, criterion, device, writer, csv_file, start_time, early_stopping, best_model_tracker)
-    if not args.use_val or not args.disable_test:
-        test_step = TestStep(model, testloader, test_val_criterion, device, writer, csv_file, start_time, autocast, logger=logger)
-        # test_step = TestStep(model, testloader, criterion, device, writer, csv_file, start_time)
 
-    logger()
+    loss_handler = LossHandler(0.1, 0.9, 0, criterion, teacher_model=None, vanilla_criterion=vanilla_criterion, kd_criterion=None, run_teacher=False)
+    train_step = TrainStep(model, trainloader, optimizer, scaler, schedulers, device, writer, start_time, autocast, loss_handler=loss_handler, logger=logger)
+    if args.use_val:
+        validation_step = ValidationStep(model, valloader, test_val_criterion, device, writer, start_time, autocast, early_stopping, best_model_tracker, logger=logger)
+    if not args.use_val or not args.disable_test:
+        test_step = TestStep(model, testloader, test_val_criterion, device, writer, start_time, autocast, logger=logger)
+
+    logger('Starting training...', col='green')
     # Main training loop
     times_at_epoch_end = []
     start_time = datetime.now()

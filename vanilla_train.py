@@ -22,7 +22,7 @@ from training_utils.training_step import TrainStep
 from training_utils.validation_step import ValidationStep
 from training_utils.testing_step import TestStep
 
-from loss_functions.VanillaKD.vanilla import VanillaKDLoss
+from loss_functions.vanilla import VanillaKDLoss
 from models.resnet import resnet56
 from utils.data.indexed_dataset import IndexedCIFAR10, IndexedCIFAR100
 from utils.amp_grad_scaling_handler import get_amp_and_grad_scaler

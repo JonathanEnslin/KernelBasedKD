@@ -1,4 +1,5 @@
 import os
+import csv
 
 class Logger:
     COLORS = {
@@ -13,14 +14,52 @@ class Logger:
         "reset": "\033[0m"
     }
 
-    def __init__(self, run_name, log_to_file=True, log_dir="./run_data/output_logs", use_color=True):
-        self.run_name = run_name
-        self.log_dir = log_dir
+    def __init__(self, args, log_to_file=True, data_dir="run_data", kd_method=None, use_color=True):
+        self.args = args
+        self.dataset = args.dataset
+        self.model_name = args.model_name
+        self.kd_method = kd_method or "base"
+        self.run_lock_dir = os.path.join(data_dir, "run_name_locks")
+        self.run_name = self._get_run_name(kd_method, run_tag=None)
+        print(self.run_name)
+        self.run_name_lock_file = os.path.join(self.run_lock_dir, f"{self.run_name}.lock")
+        # Create a file with the run name to indiciate that the run name is in use
+        Logger.create_dir_if_not_exists(os.path.dirname(self.run_name_lock_file))
+        with open(self.run_name_lock_file, "w") as f:
+            f.write("")
+
+        self.log_dir = 'output_logs'
         self.use_color = use_color
         self.log_to_file = log_to_file
+        self.csv_dir = 'csv_logs'
+        self.fine_grained_dir = os.path.join(self.dataset, self.model_name, self.kd_method)
+        self.csv_base_dir = os.path.join(data_dir, self.csv_dir, self.fine_grained_dir)
+
         if log_to_file:
-            self.log_file = os.path.join(log_dir, f"{run_name}.log")
-            os.makedirs(log_dir, exist_ok=True)
+            self.log_file = os.path.join(data_dir, self.log_dir, self.fine_grained_dir, f"{self.run_name}.log")
+            Logger.create_dir_if_not_exists(os.path.dirname(self.log_file))
+
+        self.csv_phase_locs = {
+            "test": os.path.join(self.csv_base_dir, "test", self.get_csv_name("test")),
+            "val": os.path.join(self.csv_base_dir, "val", self.get_csv_name("val")),
+            "train": os.path.join(self.csv_base_dir, "train", self.get_csv_name("train")),
+            "NA": os.path.join(self.csv_base_dir, "NA", self.get_csv_name("NA")),
+        }
+
+    @staticmethod
+    def create_dir_if_not_exists(directory):
+        try:
+            if not os.path.exists(directory):
+                os.makedirs(directory, exist_ok=True)
+                return True
+        except Exception as e:
+            print(f"Error: {directory} could not be created. {e}")
+            return False
+
+    
+    def get_run_name(self):
+        return self.run_name
+
 
     def log(self, *args, **kwargs):
         col = kwargs.pop('col', None)  # Extract the 'col' keyword argument, if present
@@ -36,8 +75,51 @@ class Logger:
             with open(self.log_file, "a") as f:
                 print(message, file=f, **kwargs)
 
+
     def __call__(self, *args, **kwargs):
         self.log(*args, **kwargs)
+
+
+    def log_to_csv(self, data):
+        phase = data.get('phase', 'NA')
+        csv_file = self.csv_phase_locs[phase]
+        Logger.create_dir_if_not_exists(os.path.dirname(csv_file))
+        file_exists = os.path.isfile(csv_file)
+        with open(csv_file, 'a', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=data.keys())
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(data)
+        
+
+    def get_csv_name(self, phase):
+        if phase == 'NA':
+            return f"{self.run_name}.csv"
+        return f"{self.run_name}.{phase}.csv"
+
+
+    def _get_run_name(self, kd_type=None, run_tag=None):
+        # Generate or use provided run name
+        val_tag = ".val" if self.args.use_val else ""
+        kd_tag = f".{kd_type}" if kd_type is not None else ""
+        auto_name = f"{self.args.model_name}@{self.args.dataset}_{self.args.param_set}{kd_tag}"
+        run_name_base = self.args.run_name or auto_name
+        if not self.args.disable_auto_run_indexing:
+            run_name = run_name_base + "_#1"
+            run_counter = 2
+            while os.path.exists(os.path.join(self.run_lock_dir, f"{run_name}.lock")):
+                run_name = f"{run_name_base}_#{run_counter}"
+                run_counter += 1
+        else:
+            run_name = run_name_base
+
+        if self.args.run_name is not None:
+            run_name  = run_name + val_tag
+
+        # If resuming training, use the run name from the checkpoint file or the provided run name
+        if self.args.resume:
+            run_name = self.args.run_name or os.path.basename(self.args.resume).split('_epoch')[0]
+        return run_name
 
 if __name__ == "__main__":
     # Example usage:

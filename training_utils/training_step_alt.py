@@ -1,24 +1,49 @@
 import torch
 import torch.cuda.amp as amp
 from sklearn.metrics import f1_score
-from utils.log_utils import create_log_entry, log_to_csv
+from utils.log_utils import create_log_entry
+from models.base_model import BaseModel
+from loss_functions.vanilla import VanillaKDLoss
 import time
 
+class LossHandler:
+    def __init__(self, gamma, alpha, beta, student_criterion, teacher_model: BaseModel=None, vanilla_criterion: VanillaKDLoss=None, kd_criterion=None, run_teacher=True):
+        self.gamma = gamma
+        self.alpha = alpha
+        self.beta = beta
+        self.student_criterion = student_criterion
+        self.teacher_model = teacher_model
+        self.vanilla_criterion = vanilla_criterion
+        self.kd_criterion = kd_criterion
+        self.run_teacher = run_teacher
+
+class DummyCriterion(torch.nn.Module):
+    def __init__(self):
+        super(DummyCriterion, self).__init__()
+
+    def forward(self, outputs, labels, *args, **kwargs):
+        return 0
+    
+
 class TrainStep:
-    def __init__(self, model, trainloader, criterion, optimizer, scaler, schedulers, device, writer, csv_file, start_time, autocast, is_kd=False, logger=print):
+    def __init__(self, model, trainloader, optimizer, scaler, schedulers, device, writer, start_time, autocast, loss_handler=None, logger=print):
+        self.loss_handler = loss_handler
+        if self.loss_handler is None:
+            self.is_kd = False
+            self.loss_handler = LossHandler(1, 0, 0, torch.nn.CrossEntropyLoss(), DummyCriterion(), None, DummyCriterion(), False)
         self.model = model
         self.trainloader = trainloader
-        self.criterion = criterion
         self.optimizer = optimizer
         self.scaler = scaler
         self.schedulers = schedulers
         self.device = device
         self.writer = writer
-        self.csv_file = csv_file
         self.start_time = start_time
-        self.is_kd = is_kd
         self.autocast = autocast
         self.logger = logger
+
+        if self.loss_handler.run_teacher and self.loss_handler.teacher_model is None:
+            logger("Warning: teacher is None, but is specified to be run", col='yellow')
 
     def __call__(self, epoch):
         self.model.train()
@@ -37,12 +62,23 @@ class TrainStep:
             
             self.optimizer.zero_grad()
 
+            teacher_logits = None
+            if self.loss_handler.run_teacher:
+                teacher_logits = self.loss_handler.teacher_model.generate_logits(inputs)
+
             with self.autocast(self.device.type):
                 outputs = self.model(inputs)
-                if self.is_kd:
-                    loss = self.criterion(outputs, labels, features=inputs, indices=indices)
-                else:
-                    loss = self.criterion(outputs, labels)
+                student_loss = self.loss_handler.gamma * self.loss_handler.student_criterion(outputs, labels)
+                                
+                vanilla_loss = 0
+                kd_loss = 0
+                if self.loss_handler.alpha != 0 and self.loss_handler.vanilla_criterion is not None:
+                    vanilla_loss = self.loss_handler.alpha * self.loss_handler.vanilla_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
+                if self.loss_handler.beta != 0 and self.loss_handler.kd_criterion is not None:
+                    kd_loss = self.loss_handler.beta * self.loss_handler.kd_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
+
+                loss = student_loss + vanilla_loss + kd_loss
+                
             running_time1 += time.time() - start_time1
             start_time2 = time.time()
             self.scaler.scale(loss).backward()

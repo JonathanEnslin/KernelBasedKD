@@ -158,8 +158,8 @@ class TeacherModelHandler:
             
             with torch.no_grad():
                 outputs = self.teacher(inputs)
-                pre_activation_fmaps_for_batch = self.teacher.get_pre_activation_fmaps()
-                post_activation_fmaps_for_batch = self.teacher.get_post_activation_fmaps()
+                pre_activation_fmaps_for_batch = self.teacher.get_pre_activation_fmaps(detached=True)
+                post_activation_fmaps_for_batch = self.teacher.get_post_activation_fmaps(detached=True)
 
             self._store_batch_results(indices, outputs, labels, pre_activation_fmaps_for_batch, post_activation_fmaps_for_batch,
                                        teacher_logits, teacher_labels, teacher_pre_activation_fmaps, teacher_post_activation_fmaps)

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class VanillaKDLoss(nn.Module):
-    def __init__(self, alpha=0.1, temperature=20, teacher=None, cached_teacher_logits=None):
+    def __init__(self, temperature=20, cached_teacher_logits=None):
         """
         Initializes the VanillaKDLoss module.
         
@@ -13,9 +13,7 @@ class VanillaKDLoss(nn.Module):
         - teacher (nn.Module): Pre-trained teacher model (optional).
         """
         super(VanillaKDLoss, self).__init__()
-        self.alpha = alpha
         self.temperature = temperature
-        self.teacher = teacher
         self.cached_teacher_logits = cached_teacher_logits
 
     def forward(self, student_logits, labels, teacher_logits=None, features=None, indices=None):
@@ -32,22 +30,16 @@ class VanillaKDLoss(nn.Module):
         - loss (torch.Tensor): Combined KD and cross-entropy loss.
         """
         if teacher_logits is None and (self.cached_teacher_logits is None or indices is None):
-            if self.teacher is None:
-                raise ValueError("Teacher model is not provided")
-            if features is None:
-                raise ValueError("Features are not provided")
-            teacher_logits = self.teacher(features)            
-        elif teacher_logits is None and indices is not None and self.cached_teacher_logits is not None:
-            teacher_logits = self.cached_teacher_logits[indices]
-        else:
-            raise ValueError("Teacher logits or (indices and cached logits are not provided")
+            raise ValueError("Teacher logits or (indices and/or cached logits are not provided")
+
+        teacher_logits = teacher_logits or self.cached_teacher_logits[indices]
 
         soft_log_probs = F.log_softmax(student_logits / self.temperature, dim=1)
         soft_targets = F.softmax(teacher_logits / self.temperature, dim=1)
         distillation_loss = F.kl_div(soft_log_probs, soft_targets, reduction='batchmean') * (self.temperature ** 2)
-        student_loss = F.cross_entropy(student_logits, labels)
         
         # Combine losses
-        loss = (self.alpha * distillation_loss) + ((1 - self.alpha) * student_loss)
-        return loss
+        return distillation_loss
+        # loss = (self.alpha * distillation_loss) + ((1 - self.alpha) * student_loss)
+        # return loss
 

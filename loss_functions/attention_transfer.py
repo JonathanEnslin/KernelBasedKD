@@ -114,7 +114,7 @@ class ATLoss(nn.Module):
             self.get_teacher_feature_maps = self._get_teacher_feature_maps_cached
         
 
-    def forward(self, student_logits, labels, features=None, indices=None):
+    def forward(self, student_logits, teacher_logits, labels, features=None, indices=None):
         """
         Forward pass for computing the attention transfer loss.
 
