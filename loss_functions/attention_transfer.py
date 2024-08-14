@@ -212,7 +212,7 @@ class ATLoss(nn.Module):
 
 
     def _get_teacher_feature_maps_not_cached(self, indices, features):
-        self.teacher.generate_logits(features)
+        # self.teacher.generate_logits(features)
         return self.non_cached_feature_map_getter(self.teacher)
 
 

@@ -16,6 +16,24 @@ class LossHandler:
         self.vanilla_criterion = vanilla_criterion
         self.kd_criterion = kd_criterion
         self.run_teacher = run_teacher
+        self.epoch_step_fn = None
+        self.batch_step_fn = None
+        self.extern_vars = {} # Can be used to store any external variables, such as ones used for the step functions
+
+    def set_epoch_step_fn(self, fn):
+        self.epoch_step_fn = fn
+
+    def set_batch_step_fn(self, fn):
+        self.batch_step_fn = fn
+
+    def epoch_step(self, epoch_idx):
+        if self.epoch_step_fn is not None:
+            self.epoch_step_fn(epoch_idx)
+
+    def batch_step(self, batch_idx):
+        if self.batch_step_fn is not None:
+            self.batch_step_fn(batch_idx)
+        
 
 class DummyCriterion(torch.nn.Module):
     def __init__(self):
@@ -52,11 +70,8 @@ class TrainStep:
         all_preds = []
         top5_correct = 0
         total_samples = 0  # Keep track of the total number of samples
-        running_time1 = 0.0
-        running_time2 = 0.0
-        running_time3 = 0.0
+
         for i, (inputs, labels, indices) in enumerate(self.trainloader):
-            start_time1 = time.time()
             inputs, labels = inputs.to(self.device), labels.to(self.device)
             total_samples += labels.size(0)
             
@@ -77,16 +92,14 @@ class TrainStep:
                 if self.loss_handler.beta != 0 and self.loss_handler.kd_criterion is not None:
                     kd_loss = self.loss_handler.beta * self.loss_handler.kd_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
 
-                loss = student_loss + vanilla_loss + kd_loss
-                
-            running_time1 += time.time() - start_time1
-            start_time2 = time.time()
+                loss = student_loss + vanilla_loss + kd_loss      
+
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
-            running_time2 += time.time() - start_time2
-            
-            start_time3 = time.time()
+
+            self.loss_handler.batch_step()
+
             running_loss += loss.item()
             
             _, predicted = torch.max(outputs, 1)
@@ -102,18 +115,14 @@ class TrainStep:
                 self.logger(f'[Epoch {epoch+1}, Batch {i}/{len(self.trainloader) - 1}] Loss: {avg_loss:.3f}')
                 self.writer.add_scalar('training_loss', avg_loss, epoch * len(self.trainloader) + i)
                 
-            running_time3 += time.time() - start_time3
-            # if i % 100 == 0:
-            #     print(i, "======================================================")
-            #     print(f"Time taken for forward pass: {running_time1:.2f}s")
-            #     print(f"Time taken for backward pass: {running_time2:.2f}s")
-            #     print(f"Time taken for metric calculations: {running_time3:.2f}s")
         # Step the schedulers
         for scheduler in self.schedulers:
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 scheduler.step(running_loss)
             else:
                 scheduler.step()
+        
+        self.loss_handler.epoch_step()
 
         # Concatenate all predictions and labels for metrics calculation
         all_labels = torch.cat(all_labels)

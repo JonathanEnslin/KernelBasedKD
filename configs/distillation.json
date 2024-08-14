@@ -7,7 +7,7 @@
       "notes": {
         "description": "Standard attention transfer setup with beta=1000"
       },
-      "loss_function": "at",
+      "distillation_type": "at",
       "params": {
         "mode": "impl"
       }

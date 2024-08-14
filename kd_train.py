@@ -33,7 +33,7 @@ from utils.config_printer import ConfigPrinter
 import utils.miscellaneous as misc
 from utils.logger import Logger
 import utils
-
+from utils.distillation.distillation_config import *
 
 import utils
 
@@ -62,7 +62,7 @@ def main():
     parser.add_argument('--resume', type=str, help='Path to the checkpoint file to resume training')
     parser.add_argument('--run_name', type=str, default=None, help='Optional run name to overwrite the generated name')
     parser.add_argument('--checkpoint_dir', type=str, default='run_data/checkpoints', help='Directory to save checkpoints')
-    parser.add_argument('--checkpoint_freq', type=int, default=10, help='Frequency of checkpoint saving in epochs')
+    parser.add_argument('--checkpoint_freq', type=int, default=25, help='Frequency of checkpoint saving in epochs')
     parser.add_argument('--disable_auto_run_indexing', action='store_true', help='Disable automatic run indexing (i.e. _run1, _run2, etc.)')
     parser.add_argument('--csv_dir', type=str, default='run_data/csv_logs', help='Directory to save CSV logs')
     parser.add_argument('--dataset_dir', type=str, default='data', help='Directory of the dataset (default is data)')
@@ -72,6 +72,7 @@ def main():
     parser.add_argument('--disable_test', action='store_true', help='Disable the test set if validation set is used')
     parser.add_argument('--disable_test_until_epoch', type=int, default=0, help='Disable the test set until this epoch')
     parser.add_argument('--output_data_dir', type=str, default='run_data', help='Directory to save the run data')
+    parser.add_argument('--run_tag', type=str, default='', help='Tag to add to the run name')
     # ==================== ARGS RELATED TO VALIDATION TRAINING ====================
     parser.add_argument('--use_val', action='store_true', help='Use a validation set')
     parser.add_argument('--val_size', type=float, help='Proportion of training data used for validation set (0 < val_size < 1)')
@@ -87,17 +88,41 @@ def main():
     parser.add_argument('--kd_params', type=str, required=False, help='Path to the knowledge distillation config file')
     parser.add_argument('--kd_set', type=str, required=False, help='The KD set to use')
     parser.add_argument('--teacher_path', type=str, required=False, help='Path to the teacher model')
+    parser.add_argument('--teacher_type', type=str, help='Type of the teacher model, must be one of the supported model types and match the teacher model file')
     parser.add_argument('--use_cached_teacher', action='store_true')
+    parser.add_argument('--use_cached_logits', action='store_true')
+    parser.add_argument('--use_cached_feature_maps', action='store_true')
+
 
     args = parser.parse_args()
 
+    provisional_kd_set = args.kd_set
+    provisional_teacher_type = args.teacher_type
 
     # Initialise logger
-    logger = Logger(args, log_to_file=True, data_dir=args.output_data_dir, kd_method='base')
+    logger = Logger(args,
+                    log_to_file=True,
+                    data_dir=args.output_data_dir,
+                    run_tag=args.run_tag if args.run_tag != '' else None, 
+                    teacher_type=provisional_teacher_type, 
+                    kd_set=provisional_kd_set)
+    
     # Get the run name
     run_name = logger.get_run_name()
     logger(f"===> Using run name: {run_name}", col='cyan')
     
+    # if kd_params is provided then kd_set must be provided and vice verse, if both are provided then teacher should be provided as well
+    if (args.kd_params is not None and args.kd_set is None) or (args.kd_set is not None and args.kd_params is None):
+        logger("===> If kd_params is provided then kd_set must be provided and vice verse. Exiting.", col='red')
+        exit(1)
+
+    if (args.kd_params is not None and args.teacher_path is None) or (args.teacher_path is not None and args.kd_params is None):
+        logger("===> If kd_params is provided then teacher_path must be provided and vice verse. Exiting.", col='red')
+        exit(1)
+
+    if (args.teacher_path is not None and args.teacher_type is None) or (args.teacher_type is not None and args.teacher_path is None):
+        logger("===> If teacher_path is provided then teacher_type must be provided and vice verse. Exiting.", col='red')
+        exit(1)
 
     # Set the seed
     # set_seed(112)
@@ -143,35 +168,57 @@ def main():
     if model is None:
         exit(1)
 
-
-    # Load and cache teacher model data
-    logger("Setting up teacher model")
-    teacher_model_handler = TeacherModelHandler(model_class=resnet56,
-                                                teacher_file_name=args.teacher_path,
-                                                device=device,
-                                                num_classes=num_classes,
-                                                printer=print)
-    
-    teacher = teacher_model_handler.load_teacher_model()
-    if teacher is None:
-        exit(1)
-
-    # Default to None, will be set to the logits and feature maps if using cached teacher
-    teacher_logits = None
-    teacher_layer_groups_preactivation_fmaps = None
-    teacher_layer_groups_post_activation_fmaps = None   
-    if args.use_cached_teacher:
-        teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps = \
-            teacher_model_handler.generate_and_save_teacher_logits_and_feature_maps(trainloader=trainloader, train_dataset=train_dataset)        
+    kd_criterion = None
+    vanilla_criterion = None
+    gamma, alpha, beta = 1.0, 0.0, 0.0
+    teacher=None
+    kd_mode = 'base'
+    if args.teacher_path is not None:
+        # Load and cache (if specified) teacher model data
+        logger("Setting up teacher model")
+        teacher_model_handler = TeacherModelHandler(model_class=resnet56,
+                                                    teacher_file_name=args.teacher_path,
+                                                    device=device,
+                                                    num_classes=num_classes,
+                                                    printer=print)
         
-    del teacher_model_handler # to release references so that memory can be cleared up later
-    logger("Teacher model setup completed.")    
-    logger("")
+        teacher = teacher_model_handler.load_teacher_model()
+        if teacher is None:
+            exit(1)
+
+        # Default to None, will be set to the logits and feature maps if using cached teacher
+        teacher_logits = None
+        teacher_layer_groups_preactivation_fmaps = None
+        teacher_layer_groups_post_activation_fmaps = None   
+        if args.use_cached_teacher:
+            teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps = \
+                teacher_model_handler.generate_and_save_teacher_logits_and_feature_maps(trainloader=trainloader, train_dataset=train_dataset)        
+            
+        del teacher_model_handler # to release references so that memory can be cleared up later
+        logger("Teacher model setup completed.")
+        logger("")
+
+        # Load the distillation params
+        distillation_params = get_distillation_params(args.kd_params, args.kd_set, logger=logger)
+        gamma = distillation_params.get("gamma", gamma)
+        alpha = distillation_params.get("alpha", alpha)
+        beta = distillation_params.get("beta", beta)
+        if "distillation_type" in distillation_params:
+            kd_criterion = get_loss_function(distillation_params, logger=logger)
+            kd_mode = distillation_params['distillation_type']
+        if "vanilla_temperature" in distillation_params:
+            vanilla_criterion = lf.vanilla.VanillaKDLoss(temperature=distillation_params["vanilla_temperature"], cached_teacher_logits=teacher_logits)
 
     # Set up loss functions
     criterion = nn.CrossEntropyLoss()
-    vanilla_criterion = lf.vanilla.VanillaKDLoss(4.0, teacher_logits)
     test_val_criterion = nn.CrossEntropyLoss()    
+
+    loss_handler = LossHandler(gamma, alpha, beta,
+                                criterion,
+                                teacher_model=teacher,
+                                vanilla_criterion=vanilla_criterion,
+                                kd_criterion=kd_criterion,
+                                run_teacher=(not args.use_cached_teacher))
 
     # Restore hook states to their ideal values
     model.set_hook_device_state(args.device if torch.cuda.is_available() else "cpu")
@@ -181,7 +228,7 @@ def main():
     schedulers = get_schedulers(params, optimizer)
 
     # Initialize TensorBoard writer
-    writer_name = config_utils.get_writer_name(kd_mode="base", args=args, run_name=run_name)
+    writer_name = config_utils.get_writer_name(kd_mode=kd_mode, args=args, run_name=run_name)
     writer = SummaryWriter(writer_name)
 
     # Define the start time for the logger
@@ -218,7 +265,6 @@ def main():
         start_epoch = load_checkpoint(model, optimizer, schedulers, scaler, filename=args.resume, logger=logger)
 
 
-    loss_handler = LossHandler(0.1, 0.9, 0, criterion, teacher_model=None, vanilla_criterion=vanilla_criterion, kd_criterion=None, run_teacher=False)
     train_step = TrainStep(model, trainloader, optimizer, scaler, schedulers, device, writer, start_time, autocast, loss_handler=loss_handler, logger=logger)
     if args.use_val:
         validation_step = ValidationStep(model, valloader, test_val_criterion, device, writer, start_time, autocast, early_stopping, best_model_tracker, logger=logger)

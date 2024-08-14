@@ -14,13 +14,15 @@ class Logger:
         "reset": "\033[0m"
     }
 
-    def __init__(self, args, log_to_file=True, data_dir="run_data", kd_method=None, use_color=True):
+    def __init__(self, args, log_to_file=True, data_dir="run_data", run_tag=None, use_color=True, teacher_type=None, kd_set=None):
         self.args = args
         self.dataset = args.dataset
         self.model_name = args.model_name
-        self.kd_method = kd_method or "base"
+        self.run_tag = run_tag
+        self.teacher_type = teacher_type
+        self.kd_set = kd_set
         self.run_lock_dir = os.path.join(data_dir, "run_name_locks")
-        self.run_name = self._get_run_name(kd_method, run_tag=None)
+        self.run_name = self._get_run_name(run_tag=run_tag)
         print(self.run_name)
         self.run_name_lock_file = os.path.join(self.run_lock_dir, f"{self.run_name}.lock")
         # Create a file with the run name to indiciate that the run name is in use
@@ -32,7 +34,7 @@ class Logger:
         self.use_color = use_color
         self.log_to_file = log_to_file
         self.csv_dir = 'csv_logs'
-        self.fine_grained_dir = os.path.join(self.dataset, self.model_name, self.kd_method)
+        self.fine_grained_dir = os.path.join(self.dataset, self.model_name)
         self.csv_base_dir = os.path.join(data_dir, self.csv_dir, self.fine_grained_dir)
 
         if log_to_file:
@@ -98,11 +100,13 @@ class Logger:
         return f"{self.run_name}.{phase}.csv"
 
 
-    def _get_run_name(self, kd_type=None, run_tag=None):
+    def _get_run_name(self):
         # Generate or use provided run name
         val_tag = ".val" if self.args.use_val else ""
-        kd_tag = f".{kd_type}" if kd_type is not None else ""
-        auto_name = f"{self.args.model_name}@{self.args.dataset}_{self.args.param_set}{kd_tag}"
+        run_tag = f".{self.run_tag}" if self.run_tag is not None else ""
+        teacher_tag = f"[{self.teacher_type}]" if self.teacher_type is not None else ""
+        kd_tag = f"[{self.kd_set}]" if self.kd_set is not None else ""
+        auto_name = f"{self.args.model_name}{teacher_tag}@{self.args.dataset}_{self.args.param_set}{kd_tag}{run_tag}"
         run_name_base = self.args.run_name or auto_name
         if not self.args.disable_auto_run_indexing:
             run_name = run_name_base + "_#1"
