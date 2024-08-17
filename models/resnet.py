@@ -32,6 +32,9 @@ class BasicBlock(nn.Module):
         self.bn2 = nn.BatchNorm2d(planes)
         self.downsample = downsample
         self.stride = stride
+        # ============= filter code ===============
+        self.conv_layers = [self.conv1, self.conv2]
+        # =========================================
 
     def forward(self, x):
         residual = x
@@ -72,6 +75,10 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
+        # ============= filter code ===============
+        self.conv_layers = [self.conv1, self.conv2, self.conv3]
+        # =========================================
+
     def forward(self, x):
         residual = x
 
@@ -99,7 +106,6 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(BaseModel):
-
     def __init__(self, depth, num_filters, block_name='BasicBlock', num_classes=10):
         super(ResNet, self).__init__()
         # Model type specifies number of layers for CIFAR-10 model
@@ -117,6 +123,12 @@ class ResNet(BaseModel):
         self.inplanes = num_filters[0]
         self.conv1 = nn.Conv2d(3, num_filters[0], kernel_size=3, padding=1,
                                bias=False)
+        
+        # ============= filter code ===============
+        self.all_conv_layers = [self.conv1]
+        self.group_final_conv_layers = []
+        # =========================================
+
         self.bn1 = nn.BatchNorm2d(num_filters[0])
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self._make_layer(block, num_filters[1], n)
@@ -143,9 +155,16 @@ class ResNet(BaseModel):
 
         layers = list([])
         layers.append(block(self.inplanes, planes, stride, downsample, is_last=(blocks == 1)))
+
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
             layers.append(block(self.inplanes, planes, is_last=(i == blocks-1)))
+
+        # ============= filter code ===============
+        for block in layers:
+            self.all_conv_layers.extend(block.conv_layers)
+        self.group_final_conv_layers.append(layers[-1].conv_layers[-1])
+        # =========================================
 
         return nn.Sequential(*layers)
 

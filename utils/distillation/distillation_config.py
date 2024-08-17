@@ -1,10 +1,13 @@
 import re
 import json
 import os
-import loss_functions as lf
+from loss_functions.filter_at import FilterAttentionTransfer
+from loss_functions.vanilla import VanillaKDLoss
+from loss_functions.attention_transfer import ATLoss
 from utils.logger import Logger
+import inspect
 
-def get_distillation_params(params_file: str, param_set: str, logger=Logger, base_path='configs') -> dict:
+def get_distillation_params(params_file: str, param_set: str, logger=Logger, base_path='') -> dict:
     params_path = os.path.join(base_path, params_file)
 
     # if the path does not exist return None
@@ -22,15 +25,15 @@ def get_distillation_params(params_file: str, param_set: str, logger=Logger, bas
 
 
 loss_function_map = {
-    "vanilla": lf.vanilla.VanillaKDLoss,
-    "at": lf.attention_transfer.ATLoss,
-    "filter_at": lf.filter_at.FilterAttentionTransfer,
+    "vanilla": VanillaKDLoss,
+    "at": ATLoss,
+    "filter_at": FilterAttentionTransfer,
 }
 
 def get_kd_method(distillation_params_dict, logger: Logger):
     return distillation_params_dict.get("distillation_type", None)
 
-def get_loss_function(distillation_params_dict, logger: Logger, preact_fmaps=None, postact_fmaps=None):
+def get_loss_function(distillation_params_dict, logger: Logger, **kwargs):
     distillation_type = distillation_params_dict.get("distillation_type", None)
     if distillation_type is None:
         logger("Distillation type not found in distillation params", col='red')
@@ -46,7 +49,15 @@ def get_loss_function(distillation_params_dict, logger: Logger, preact_fmaps=Non
         logger("Params not found in distillation params", col='red')
         return None
     
-    return loss_fn_class(**params)
+    # Filter the params and kwargs to include only those accepted by the loss function class
+    sig = inspect.signature(loss_fn_class)
+    filtered_params = {k: v for k, v in params.items() if k in sig.parameters}
+    filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
+    
+    # Combine filtered params and filtered kwargs
+    combined_kwargs = {**filtered_params, **filtered_kwargs}
+
+    return loss_fn_class(**combined_kwargs)
     
 
 

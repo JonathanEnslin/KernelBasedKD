@@ -22,7 +22,7 @@ class Logger:
         self.teacher_type = teacher_type
         self.kd_set = kd_set
         self.run_lock_dir = os.path.join(data_dir, "run_name_locks")
-        self.run_name = self._get_run_name(run_tag=run_tag)
+        self.run_name = self._get_run_name()
         print(self.run_name)
         self.run_name_lock_file = os.path.join(self.run_lock_dir, f"{self.run_name}.lock")
         # Create a file with the run name to indiciate that the run name is in use

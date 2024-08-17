@@ -28,7 +28,7 @@
       }
     ],
     "training": {
-      "max_epochs": 110,
+      "max_epochs": 100,
       "batch_size": 128
     }
   },

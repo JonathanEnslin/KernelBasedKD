@@ -7,7 +7,7 @@ from loss_functions.vanilla import VanillaKDLoss
 import time
 
 class LossHandler:
-    def __init__(self, gamma, alpha, beta, student_criterion, teacher_model: BaseModel=None, vanilla_criterion: VanillaKDLoss=None, kd_criterion=None, run_teacher=True):
+    def __init__(self, gamma, alpha, beta, student_criterion, teacher_model: BaseModel=None, vanilla_criterion: VanillaKDLoss=None, kd_criterion=None):
         self.gamma = gamma
         self.alpha = alpha
         self.beta = beta
@@ -15,10 +15,19 @@ class LossHandler:
         self.teacher_model = teacher_model
         self.vanilla_criterion = vanilla_criterion
         self.kd_criterion = kd_criterion
-        self.run_teacher = run_teacher
         self.epoch_step_fn = None
         self.batch_step_fn = None
         self.extern_vars = {} # Can be used to store any external variables, such as ones used for the step functions
+        self.eval_criterions = []
+
+    def add_eval_criterion(self, criterion):
+        self.eval_criterions.append(criterion)
+
+    def run_teacher(self):
+        vanilla_run = self.vanilla_criterion is not None and self.vanilla_criterion.run_teacher()
+        kd_run = self.kd_criterion is not None and self.kd_criterion.run_teacher()
+        eval_run = any(crit.run_teacher() for crit in self.eval_criterions)
+        return vanilla_run or kd_run or eval_run
 
     def set_epoch_step_fn(self, fn):
         self.epoch_step_fn = fn
@@ -60,7 +69,7 @@ class TrainStep:
         self.autocast = autocast
         self.logger = logger
 
-        if self.loss_handler.run_teacher and self.loss_handler.teacher_model is None:
+        if self.loss_handler.run_teacher() and self.loss_handler.teacher_model is None:
             logger("Warning: teacher is None, but is specified to be run", col='yellow')
 
     def __call__(self, epoch):
@@ -78,12 +87,14 @@ class TrainStep:
             self.optimizer.zero_grad()
 
             teacher_logits = None
-            if self.loss_handler.run_teacher:
+            if self.loss_handler.run_teacher():
                 teacher_logits = self.loss_handler.teacher_model.generate_logits(inputs)
 
             with self.autocast(self.device.type):
+                eval_losses = []
                 outputs = self.model(inputs)
                 student_loss = self.loss_handler.gamma * self.loss_handler.student_criterion(outputs, labels)
+
                                 
                 vanilla_loss = 0
                 kd_loss = 0
@@ -93,12 +104,17 @@ class TrainStep:
                     kd_loss = self.loss_handler.beta * self.loss_handler.kd_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
 
                 loss = student_loss + vanilla_loss + kd_loss      
+            
+                with torch.no_grad():
+                    # process the eval criterions
+                    for crit in self.loss_handler.eval_criterions:
+                        eval_losses.append(crit(outputs, labels, teacher_logits, features=inputs, indices=indices))
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
 
-            self.loss_handler.batch_step()
+            self.loss_handler.batch_step(batch_idx=i)
 
             running_loss += loss.item()
             
@@ -112,7 +128,16 @@ class TrainStep:
             
             if i % 100 == 0:  # Log every 100 mini-batches
                 avg_loss = running_loss / (i + 1)  # Average loss over the batches so far
-                self.logger(f'[Epoch {epoch+1}, Batch {i}/{len(self.trainloader) - 1}] Loss: {avg_loss:.3f}')
+                student_loss_str = (f"Stu. Loss: {student_loss:.3f}").ljust(20)
+                vanilla_loss_str = "" if self.loss_handler.vanilla_criterion is None else (f"Van. Loss: {vanilla_loss:.3f}").ljust(20)
+                kd_loss_str = "" if self.loss_handler.kd_criterion is None else (f"KD Loss: {kd_loss:.3f}").ljust(18)
+                loss_str = f"Loss: {avg_loss:.3f}".ljust(15)
+                batch_str = f"[Epoch {epoch+1}, Batch {i}/{len(self.trainloader) - 1}]".ljust(28)
+                
+                eval_losses = [f'{eval_loss:.5e}' for eval_loss in eval_losses]
+                eval_losses_str = "[" + ", ".join(eval_losses) + "]"
+
+                self.logger(f'{batch_str} {loss_str} {student_loss_str} {vanilla_loss_str} {kd_loss_str} {eval_losses_str}')
                 self.writer.add_scalar('training_loss', avg_loss, epoch * len(self.trainloader) + i)
                 
         # Step the schedulers
@@ -122,7 +147,7 @@ class TrainStep:
             else:
                 scheduler.step()
         
-        self.loss_handler.epoch_step()
+        self.loss_handler.epoch_step(epoch_idx=epoch)
 
         # Concatenate all predictions and labels for metrics calculation
         all_labels = torch.cat(all_labels)

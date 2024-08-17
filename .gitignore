@@ -12,6 +12,8 @@
 /run_data
 /teacher_logits
 /teacher_feature_maps
+/fat_initial_runs
+/kd_debug
 
 # Temporarily ignoring the AT folder
 /AT

@@ -64,6 +64,33 @@
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       }
+    },
+    {
+      "name": "Python Debugger: kd_train.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "C:/Users/jonat/OneDrive/UNIV stuff/CS4/COS700/Dev/KernelBasedKD/kd_train.py",
+      "console": "integratedTerminal",
+      "args": [
+          "--params", "params.json",
+          "--param_set", "params3",
+          "--model_name", "resnet20",
+          "--checkpoint_freq", "99999",
+          "--dataset", "CIFAR100",
+          "--device", "cuda",
+          "--num_workers", "0",
+          "--run_name", "debug_kd",
+          "--kd_params", "kd_params.json",
+          "--kd_set", "AT_b_1000",
+          "--teacher_path", "resnet56_cifar100_73p18.pth",
+          "--teacher_type", "resnet56",
+          "--run_tag", "debug",
+          "--output_data_dir", "kd_debug",
+          "--disable_test_until", "95",
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
     }
   ]
 }

@@ -52,8 +52,8 @@ class ConfigPrinter:
     
     def print_params(self):
         content = self.dict_to_string(self.params, indent=0)
-        self.print_box("Hyperparameters", content)
-    
+        self.print_box("Hyperparameters", content)        
+
     def print_extra_args(self):
         content = self.dict_to_string(self.extra_args, indent=0, sep_pars=False)
         self.print_box("Other", content)
@@ -65,6 +65,10 @@ class ConfigPrinter:
         if self.extra_args:
             self.logger()  # Add space between boxes
             self.print_extra_args()
+
+    def print_dict(self, dictionary, title):
+        content = self.dict_to_string(dictionary, indent=0, sep_pars=False)
+        self.print_box(title, content)
 
 
 # Example usage with argparse

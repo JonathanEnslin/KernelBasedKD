@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from models.base_model import BaseModel
 import models.resnet
+from loss_functions.base_loss_fn import BaseLoss
 
 '''
 Adapted from:
@@ -47,8 +48,8 @@ https://github.com/AberHu/Knowledge-Distillation-Zoo/blob/master/kd_losses/at.py
 # For resnet110: [36, 72, 108]
 
 
-class ATLoss(nn.Module):
-    def __init__(self, student: BaseModel, teacher: BaseModel, beta=1.0, mode='impl',
+class ATLoss(BaseLoss):
+    def __init__(self, student: BaseModel, teacher: BaseModel, mode='impl',
                   cached_pre_activation_fmaps=None, cached_post_activation_fmaps=None,
                     device='cuda', use_post_activation=None):
         """
@@ -67,11 +68,11 @@ class ATLoss(nn.Module):
         super(ATLoss, self).__init__()
         self.student: BaseModel = student
         self.teacher: BaseModel = teacher
-        self.beta = beta
         self.standard_criterion = nn.CrossEntropyLoss()
         self.mode = mode
         self.device = device
         self.cached_teacher_maps = None
+        self.beta = 1.0
 
         pre_activation_methods = ['impl', 'paper', 'paper_strict']
         post_activation_methods = ['zoo']
@@ -114,6 +115,9 @@ class ATLoss(nn.Module):
             self.get_teacher_feature_maps = self._get_teacher_feature_maps_cached
         
 
+    def run_teacher(self):
+        return self.cached_teacher_maps is None
+
     def forward(self, student_logits, teacher_logits, labels, features=None, indices=None):
         """
         Forward pass for computing the attention transfer loss.
@@ -153,8 +157,7 @@ class ATLoss(nn.Module):
         if self.mode == 'zoo':
             at_loss /= len(feature_map_pairs)
 
-        student_loss = self.standard_criterion(student_logits, labels)
-        return student_loss + at_loss # beta alread factored in above
+        return at_loss
     
 
     def _generate_attention_maps_flattened(self, feature_map, eps=1e-6):

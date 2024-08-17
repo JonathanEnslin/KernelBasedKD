@@ -13,6 +13,8 @@ class BaseModel(nn.Module):
         self.feature_maps = []
         self.pre_activation_fmaps = []
         self.post_activation_fmaps = []
+        self.all_conv_layers = []
+        self.group_final_conv_layers = []
         self.hook_device_state = "cpu"
         self.autocast = MockAutocast
         self.device_type = "cpu"
@@ -84,9 +86,11 @@ class BaseModel(nn.Module):
         if self.hook_device_state == "same":
             return [item.detach() for item in list]
         elif self.hook_device_state == "cpu":
-            return [item.cpu().detach() for item in list]
+            return [item.detach().cpu() for item in list]
+            # return [item.cpu().detach() for item in list]
         else:
-            return [item.cuda().detach() for item in list]
+            return [item.detach().cuda() for item in list]
+            # return [item.cuda().detach() for item in list]
 
 
     def get_pre_activation_fmaps(self, detached=False):
@@ -103,6 +107,20 @@ class BaseModel(nn.Module):
 
     def save(self, path):
         torch.save(self.state_dict(), path)
+
+
+    def get_group_final_kernel_weights(self, detached=True):
+        weights = [kernel.weight for kernel in self.group_final_conv_layers]
+        if detached:
+            return self._detach_list(weights)
+        return weights
+        
+
+    def get_all_kernel_weights(self, detached=True):
+        weights = [kernel.weight for kernel in self.all_conv_layers]
+        if detached:
+            return self._detach_list(weights)
+        return weights
 
 
     def load(self, path, device="cpu"):

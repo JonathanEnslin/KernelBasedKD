@@ -1,22 +1,39 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from models.base_model import BaseModel
 
 
 class FilterAttentionTransfer(nn.Module):
-    def __init__(self, kernel_size=3, stride=1, padding=1, alpha=1.0, beta=1.0):
+    def __init__(self, student: BaseModel, teacher: BaseModel, map_p=2, loss_p=2):
         super(FilterAttentionTransfer, self).__init__()
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.padding = padding
-        self.alpha = alpha
-        self.beta = beta
-        self.get_attention = self._get_attention_huh_what
+        self.get_attention_maps = self._flatten_abs_to_p
+        self.calc_loss = self._compute_f_at_loss_pow
+        self.student = student
+        self.teacher = teacher
+        self.map_p = map_p
+        self.loss_p = loss_p
+        self.get_model_weights = self._get_model_weights
 
-    def forward(self, student, teacher):
-        student_attention = self.get_attention(student)
-        teacher_attention = self.get_attention(teacher)
-        loss = self.alpha * self.get_loss(student_attention, teacher_attention)
+
+    def forward(self, student_logits, teacher_logits, labels, features=None, indices=None):
+        student_weights = self._get_model_weights(self.student, detached=False)
+        teacher_weights = self._get_model_weights(self.teacher, detached=True)
+
+        loss = 0
+        for student_filter, teacher_filter in zip(student_weights, teacher_weights):
+            student_attention = self.get_attention_maps(student_filter, self.map_p)
+            teacher_attention = self.get_attention_maps(teacher_filter, self.map_p)
+            loss += self.calc_loss(student_attention, teacher_attention, self.loss_p)
+
         return loss
+
+    def run_teacher(self):
+        return False
+
+    def _get_model_weights(self, model: BaseModel, detached=True):
+        return model.get_group_final_kernel_weights(detached=detached)
+        
 
     def _semi_flatten_abs_to_p(self, filter_weights, p):
         # Filter weights have dimensions (C_out, C_in, H, W)
@@ -33,31 +50,23 @@ class FilterAttentionTransfer(nn.Module):
         filter_weights = filter_weights.view(filter_weights.size(0), -1)
         raise NotImplementedError()
 
-    def _flatten_abs_to_p(self, filter_weights, p):
+    def _flatten_abs_to_p(self, filter_weights, p, eps=1e-6):
         # Filter weights have dimensions (C_out, C_in, H, W)
         # This method returns a tensor of shape (H * W)
         # And computes attention across C_in and C_out for each filter
-        
+        f_at = filter_weights.abs()
+        f_at = f_at.pow(p)
+        f_at = f_at.mean(dim=(0, 1))
+        f_at = f_at.view(-1)
+        normalized_f_at = F.normalize(f_at, dim=0, eps=eps)
+        return normalized_f_at
 
-        # First, we take the absolute value of the filter weights
-        filter_weights = torch.abs(filter_weights)
-        # Next we raise the filter weights to the power of p
-        filter_weights = torch.pow(filter_weights, p)
-        # Next we sum across the C_in dimension
-        filter_weights = torch.sum(filter_weights, dim=1)
-        # Next we flatten the filter weights
-        filter_weights = filter_weights.view(filter_weights.size(0), -1)
-        return filter_weights
-
-    def _get_attention_huh_what(self, x):
-        # x: (B, C, H, W)
-        B, C, H, W = x.size()
-        x = x.view(B * C, 1, H, W)
-        attention = torch.nn.functional.avg_pool2d(x, self.kernel_size, self.stride, self.padding)
-        attention = attention.view(B, C, -1)
-        attention = torch.nn.functional.softmax(attention, dim=2)
-        return attention
+    def _compute_f_at_loss_pow(self, student_f_at, teacher_f_at, p=1):
+        return (student_f_at - teacher_f_at).pow(p).mean()
 
     def get_loss(self, student_attention, teacher_attention):
         loss = torch.mean(torch.abs(student_attention - teacher_attention))
         return loss
+    
+def get_group_boundary_indices_for_resnet(resnet_model: str):
+    raise NotImplementedError()

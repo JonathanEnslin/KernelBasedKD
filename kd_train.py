@@ -34,6 +34,7 @@ import utils.miscellaneous as misc
 from utils.logger import Logger
 import utils
 from utils.distillation.distillation_config import *
+import steppers.steppers as steppers
 
 import utils
 
@@ -89,9 +90,10 @@ def main():
     parser.add_argument('--kd_set', type=str, required=False, help='The KD set to use')
     parser.add_argument('--teacher_path', type=str, required=False, help='Path to the teacher model')
     parser.add_argument('--teacher_type', type=str, help='Type of the teacher model, must be one of the supported model types and match the teacher model file')
-    parser.add_argument('--use_cached_teacher', action='store_true')
     parser.add_argument('--use_cached_logits', action='store_true')
     parser.add_argument('--use_cached_feature_maps', action='store_true')
+    parser.add_argument('--batch_stepper', type=str, help='Batch stepping function to use')
+    parser.add_argument('--batch_stepper_args', type=str, help='Arguments for the batch stepping function')
 
 
     args = parser.parse_args()
@@ -149,7 +151,8 @@ def main():
         exit(1)
 
 
-    utils.config_printer.ConfigPrinter(args, params, logger, run_name=run_name, actual_device=device).print_all()
+    config_printer = utils.config_printer.ConfigPrinter(args, params, logger, run_name=run_name, actual_device=device)
+    config_printer.print_all()
     logger("")
 
     # Get the dataset info
@@ -190,9 +193,9 @@ def main():
         teacher_logits = None
         teacher_layer_groups_preactivation_fmaps = None
         teacher_layer_groups_post_activation_fmaps = None   
-        if args.use_cached_teacher:
+        if args.use_cached_logits or args.use_cached_feature_maps:
             teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps = \
-                teacher_model_handler.generate_and_save_teacher_logits_and_feature_maps(trainloader=trainloader, train_dataset=train_dataset)        
+                teacher_model_handler.generate_and_save_teacher_logits_and_feature_maps(trainloader, train_dataset, args.use_cached_logits, args.use_cached_feature_maps)        
             
         del teacher_model_handler # to release references so that memory can be cleared up later
         logger("Teacher model setup completed.")
@@ -204,10 +207,24 @@ def main():
         alpha = distillation_params.get("alpha", alpha)
         beta = distillation_params.get("beta", beta)
         if "distillation_type" in distillation_params:
-            kd_criterion = get_loss_function(distillation_params, logger=logger)
+            if "beta" not in distillation_params:
+                logger("Warning: a distillation function was specified in the kd params, but no beta was provided", col='yellow')
+            kd_criterion = get_loss_function(distillation_params, 
+                                            logger=logger, 
+                                            cached_logits=teacher_logits, 
+                                            cached_pre_activation_fmaps=teacher_layer_groups_preactivation_fmaps, 
+                                            cached_post_activation_fmaps=teacher_layer_groups_post_activation_fmaps,
+                                            device=device,
+                                            student=model,
+                                            teacher=teacher)
             kd_mode = distillation_params['distillation_type']
         if "vanilla_temperature" in distillation_params:
+            if "alpha" not in distillation_params:
+                logger("Warning: a vanilla KD temperature was specified in the kd params, but no alpha value was provided", col='yellow')
             vanilla_criterion = lf.vanilla.VanillaKDLoss(temperature=distillation_params["vanilla_temperature"], cached_teacher_logits=teacher_logits)
+        config_printer.print_dict(distillation_params, "KD Params")
+        teacher.set_hook_device_state(args.device if torch.cuda.is_available() else "cpu")
+        
 
     # Set up loss functions
     criterion = nn.CrossEntropyLoss()
@@ -217,8 +234,19 @@ def main():
                                 criterion,
                                 teacher_model=teacher,
                                 vanilla_criterion=vanilla_criterion,
-                                kd_criterion=kd_criterion,
-                                run_teacher=(not args.use_cached_teacher))
+                                kd_criterion=kd_criterion)
+    
+    if args.batch_stepper is not None:
+        stepper_getter = steppers.stepper_dict[args.batch_stepper]
+        stepper_args = {}
+        if args.batch_stepper_args is not None:
+            stepper_args = steppers.parse_kwargs(args.batch_stepper_args)
+        stepper = stepper_getter(loss_handler, **stepper_args)
+        loss_handler.set_batch_step_fn(stepper)
+
+    # loss_handler.add_eval_criterion(lf.attention_transfer.ATLoss(model, teacher, mode='impl'))
+    if teacher is not None:
+        loss_handler.add_eval_criterion(lf.filter_at.FilterAttentionTransfer(model, teacher))
 
     # Restore hook states to their ideal values
     model.set_hook_device_state(args.device if torch.cuda.is_available() else "cpu")

@@ -1,0 +1,99 @@
+{
+    "metadata": {
+      "description": "Training parameters for different experimental setups",
+      "version": "1.0"
+    },
+    "AT_b_1000": {
+      "notes": {
+        "description": "Standard attention transfer setup with beta=1000"
+      },
+      "distillation_type": "at",
+      "gamma": 0.2,
+      "alpha": 0.8,
+      "beta": 1000.0,
+      "vanilla_temperature": 4.0,
+      "params": {
+        "mode": "impl"
+      }
+  },
+  "FAT_2_2": {
+    "notes": {
+      "description": "Filter attention transfer"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 1.0,
+    "alpha": 0.0,
+    "beta": 100.0,
+    "vanilla_temperature": 4.0,
+    "params": {
+      "map_p": 2.0,
+      "loss_p": 2.0
+    }
+  },
+  "FAT_2_2_alt": {
+    "notes": {
+      "description": "Filter attention transfer"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 1.0,
+    "alpha": 0.0,
+    "beta": 10.0,
+    "vanilla_temperature": 4.0,
+    "params": {
+      "map_p": 2.0,
+      "loss_p": 2.0
+    }
+  },
+  "Vanilla": {
+    "notes": {
+      "description": "Filter attention transfer"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 0.2,
+    "alpha": 0.8,
+    "beta": 0.0,
+    "vanilla_temperature": 4.0,
+    "params": {
+      "map_p": 2.0,
+      "loss_p": 2.0
+    }
+  },"FAT_2_2_mix": {
+    "notes": {
+      "description": "Filter attention transfer"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 0.2,
+    "alpha": 0.8,
+    "beta": 100.0,
+    "vanilla_temperature": 4.0,
+    "params": {
+      "map_p": 2.0,
+      "loss_p": 2.0
+    }
+  },"wot": {
+    "notes": {
+      "description": "Filter attention transfer"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 0.2,
+    "alpha": 0.8,
+    "beta": 100000.0,
+    "vanilla_temperature": 4.0,
+    "params": {
+      "map_p": 2.0,
+      "loss_p": 2.0
+    }
+  },"FAT_0p4_0p4": {
+    "notes": {
+      "description": "Filter attention transfer"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 1.0,
+    "beta": 100.0,
+    "params": {
+      "map_p": 0.4,
+      "loss_p": 0.4
+    }
+  }
+}
+  
