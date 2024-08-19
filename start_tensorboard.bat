@@ -1,8 +1,16 @@
 @echo off
 setlocal
 
-:: Set the log directory
-set LOGDIR=run_data/tensorboard
+:: Check if the log directory argument is provided
+if "%~1"=="" (
+    echo Error: Please provide the log directory as an argument.
+    echo Usage: %~nx0 <logdir>
+    endlocal
+    exit /b 1
+)
+
+:: Set the log directory from the first argument
+set LOGDIR=%~1
 
 :: Set the host to bind TensorBoard to
 set HOST=0.0.0.0

@@ -4,10 +4,11 @@ import torch.nn.functional as F
 from models.base_model import BaseModel
 
 
-class FilterAttentionTransfer(nn.Module):
+class FilterAttentionTransfer(BaseModel):
     def __init__(self, student: BaseModel, teacher: BaseModel, map_p=2, loss_p=2):
         super(FilterAttentionTransfer, self).__init__()
-        self.get_attention_maps = self._flatten_abs_to_p
+        self.get_attention_maps = self._semi_flatten_abs_to_p
+        # self.get_attention_maps = self._flatten_abs_to_p
         self.calc_loss = self._compute_f_at_loss_pow
         self.student = student
         self.teacher = teacher
@@ -28,8 +29,10 @@ class FilterAttentionTransfer(nn.Module):
 
         return loss
 
+
     def run_teacher(self):
         return False
+
 
     def _get_model_weights(self, model: BaseModel, detached=True):
         return model.get_group_final_kernel_weights(detached=detached)
@@ -45,10 +48,12 @@ class FilterAttentionTransfer(nn.Module):
         # Next we raise the filter weights to the power of p
         filter_weights = torch.pow(filter_weights, p)
         # Next we sum across the C_in dimension
-        filter_weights = torch.sum(filter_weights, dim=1)
+        filter_weights = torch.mean(filter_weights, dim=1)
         # Next we flatten the filter weights
-        filter_weights = filter_weights.view(filter_weights.size(0), -1)
-        raise NotImplementedError()
+        filter_weights = filter_weights.view( -1)
+        normalized_filter_weights = F.normalize(filter_weights, dim=0, eps=1e-6)
+        return normalized_filter_weights
+
 
     def _flatten_abs_to_p(self, filter_weights, p, eps=1e-6):
         # Filter weights have dimensions (C_out, C_in, H, W)
@@ -61,12 +66,15 @@ class FilterAttentionTransfer(nn.Module):
         normalized_f_at = F.normalize(f_at, dim=0, eps=eps)
         return normalized_f_at
 
+
     def _compute_f_at_loss_pow(self, student_f_at, teacher_f_at, p=1):
         return (student_f_at - teacher_f_at).pow(p).mean()
+
 
     def get_loss(self, student_attention, teacher_attention):
         loss = torch.mean(torch.abs(student_attention - teacher_attention))
         return loss
+    
     
 def get_group_boundary_indices_for_resnet(resnet_model: str):
     raise NotImplementedError()

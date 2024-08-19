@@ -9,5 +9,6 @@ class TestStep(EvaluationStep):
         super().__init__(model, testloader, criterion, device, writer, start_time, autocast, mode='test', logger=logger, no_write=no_write)
 
     def __call__(self, epoch):
-        super().__call__(epoch)
+        _, accuracy = super().__call__(epoch)
+        return accuracy
 

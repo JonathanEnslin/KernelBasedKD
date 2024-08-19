@@ -280,5 +280,33 @@
       "max_epochs": 165,
       "batch_size": 256
     }
+  },"params_short": {
+    "notes": {
+      "source": "Enhancing batch normalized convolutional networks using displaced rectifier linear units: A systematic comparative study",
+      "url": "http://dx.doi.org/10.1016/j.eswa.2019.01.066",
+      "notes": "found to be inferior to other configurations in this file, and especially innefective for certain kd methods"
+    },
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "lr": 0.1,
+        "momentum": 0.9,
+        "nesterov": true,
+        "weight_decay": 0.0005
+      }
+    },
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.2,
+          "milestones": [40, 60, 70]
+        }
+      }
+    ],
+    "training": {
+      "max_epochs": 80,
+      "batch_size": 128
+    }
   }
 }

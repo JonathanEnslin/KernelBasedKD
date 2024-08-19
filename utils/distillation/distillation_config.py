@@ -4,6 +4,7 @@ import os
 from loss_functions.filter_at import FilterAttentionTransfer
 from loss_functions.vanilla import VanillaKDLoss
 from loss_functions.attention_transfer import ATLoss
+from loss_functions.filter_magnitude import FilterAnalysis
 from utils.logger import Logger
 import inspect
 
@@ -28,6 +29,7 @@ loss_function_map = {
     "vanilla": VanillaKDLoss,
     "at": ATLoss,
     "filter_at": FilterAttentionTransfer,
+    "Analysis": FilterAnalysis
 }
 
 def get_kd_method(distillation_params_dict, logger: Logger):

@@ -8,9 +8,9 @@
         "description": "Standard attention transfer setup with beta=1000"
       },
       "distillation_type": "at",
-      "gamma": 0.2,
-      "alpha": 0.8,
-      "beta": 1000.0,
+      "gamma": 1.0,
+      "alpha": 0.0,
+      "beta": 0.1,
       "vanilla_temperature": 4.0,
       "params": {
         "mode": "impl"
@@ -83,7 +83,7 @@
       "map_p": 2.0,
       "loss_p": 2.0
     }
-  },"FAT_0p4_0p4": {
+  },"FAT_0p4_2": {
     "notes": {
       "description": "Filter attention transfer"
     },
@@ -92,7 +92,28 @@
     "beta": 100.0,
     "params": {
       "map_p": 0.4,
-      "loss_p": 0.4
+      "loss_p": 2.0
+    }
+  },
+  "FAT_0p4_1": {
+    "notes": {
+      "description": "Filter attention transfer"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 1.0,
+    "beta": 100.0,
+    "params": {
+      "map_p": 0.4,
+      "loss_p": 1.0
+    }
+  },
+  "Analysis_1": {
+    "distillation_type": "Analysis",
+    "gamma": 1.0,
+    "beta": 50.0,
+    "params": {
+      "map_p": 0.4,
+      "loss_p": 1.0
     }
   }
 }

@@ -76,6 +76,6 @@ class EvaluationStep:
                     self.early_stopping(epoch_loss)
                     if self.early_stopping.early_stop:
                         self.logger("Early stopping triggered")
-                        return True
+                        return True, accuracy
 
-        return False
+        return False, accuracy
