@@ -5,7 +5,6 @@ from utils.log_utils import create_log_entry
 from models.base_model import BaseModel
 from loss_functions.vanilla import VanillaKDLoss
 import time
-from math import abs
 
 class LossHandler:
     def __init__(self, gamma, alpha, beta, student_criterion, teacher_model: BaseModel=None, vanilla_criterion: VanillaKDLoss=None, kd_criterion=None):
@@ -79,6 +78,10 @@ class TrainStep:
     def __call__(self, epoch):
         self.model.train()
         running_loss = 0.0
+        running_student_loss = 0.0
+        running_vanilla_loss = 0.0
+        running_kd_loss = 0.0
+        num_batches = 0  # Track the number of processed batches
         all_labels = []
         all_preds = []
         top5_correct = 0
@@ -99,16 +102,14 @@ class TrainStep:
                 outputs = self.model(inputs)
                 student_loss = self.loss_handler.gamma * self.loss_handler.student_criterion(outputs, labels)
 
-                                
-                vanilla_loss = 0
-                kd_loss = 0
+                vanilla_loss = torch.tensor(0.0, device=self.device)
+                kd_loss = torch.tensor(0.0, device=self.device)
                 if self.loss_handler.alpha != 0 and self.loss_handler.vanilla_criterion is not None:
                     vanilla_loss = self.loss_handler.alpha * self.loss_handler.vanilla_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
                 if self.loss_handler.beta != 0 and self.loss_handler.kd_criterion is not None:
                     kd_loss = self.loss_handler.beta * self.loss_handler.kd_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
 
-                loss = kd_loss      
-                # loss = student_loss + vanilla_loss + kd_loss      
+                loss = student_loss + vanilla_loss + kd_loss      
             
                 with torch.no_grad():
                     self.model.eval()
@@ -124,6 +125,10 @@ class TrainStep:
             self.loss_handler.batch_step(batch_idx=i)
 
             running_loss += loss.item()
+            running_student_loss += student_loss.item()
+            running_vanilla_loss += vanilla_loss.item()
+            running_kd_loss += kd_loss.item()
+            num_batches += 1  # Increment the number of processed batches
             
             _, predicted = torch.max(outputs, 1)
             all_labels.append(labels.cpu())
@@ -134,23 +139,27 @@ class TrainStep:
             top5_correct += (top5 == labels.view(-1, 1)).sum().item()
             
             if i % 100 == 0:  # Log every 100 mini-batches
-                avg_loss = running_loss / (i + 1)  # Average loss over the batches so far
-                student_loss_str = f"Stu. Loss: {format_loss(student_loss)}".ljust(23)
-                vanilla_loss_str = "" if self.loss_handler.vanilla_criterion is None else f"Van. Loss: {format_loss(vanilla_loss)}".ljust(23)
-                kd_loss_str = "" if self.loss_handler.kd_criterion is None else f"KD Loss: {format_loss(kd_loss)}".ljust(21)
-                loss_str = f"Loss: {avg_loss:.3f}".ljust(15)
+                mean_loss = running_loss / num_batches  # Calculate average loss over the batches so far
+                mean_student_loss = running_student_loss / num_batches
+                mean_vanilla_loss = running_vanilla_loss / num_batches
+                mean_kd_loss = running_kd_loss / num_batches
+
+                student_loss_str = f"Stu. Loss: {format_loss(mean_student_loss)}".ljust(23)
+                vanilla_loss_str = "" if self.loss_handler.vanilla_criterion is None else f"Van. Loss: {format_loss(mean_vanilla_loss)}".ljust(23)
+                kd_loss_str = "" if self.loss_handler.kd_criterion is None else f"KD Loss: {format_loss(mean_kd_loss)}".ljust(21)
+                loss_str = f"Loss: {mean_loss:.3f}".ljust(15)
                 batch_str = f"[Epoch {epoch}, Batch {i}/{len(self.trainloader) - 1}]".ljust(28)
                 
                 eval_losses = [f'{name}={eval_loss:.4e}' for (name, eval_loss) in eval_losses]
                 eval_losses_str = "[" + " | ".join(eval_losses) + "]"
 
                 self.logger(f'{batch_str} {loss_str} {student_loss_str} {vanilla_loss_str} {kd_loss_str} {eval_losses_str}')
-                self.writer.add_scalar('training_loss', avg_loss, epoch * len(self.trainloader) + i)
+                self.writer.add_scalar('training_loss', mean_loss, epoch * len(self.trainloader) + i)
                 
         # Step the schedulers
         for scheduler in self.schedulers:
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                scheduler.step(running_loss)
+                scheduler.step(running_loss / num_batches)  # Use the average running loss for ReduceLROnPlateau
             else:
                 scheduler.step()
         
@@ -161,7 +170,7 @@ class TrainStep:
         all_preds = torch.cat(all_preds)
 
         # Calculate metrics
-        epoch_loss = running_loss / len(self.trainloader)
+        epoch_loss = running_loss / num_batches
         accuracy = 100 * (all_preds == all_labels).sum().item() / len(all_labels)
         f1 = f1_score(all_labels.numpy(), all_preds.numpy(), average='macro')
         top5_error = 100 * (1 - top5_correct / total_samples)
