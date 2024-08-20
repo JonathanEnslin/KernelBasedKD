@@ -2,15 +2,23 @@ set "PYTHON_PATH=C:/Users/jonat/anaconda3/envs/COS700-ML-1/python.exe"
 
 set "DATA_DIR=fat_initial_runs"
 
-@REM set "ARGS=--num_workers 4 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR% --teacher_type resnet56 --teacher_path resnet56_cifar100_73p18.pth --kd_params kd_params.json --kd_set FAT_0p4_1 --use_cached_logits"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%"
 
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
 
-set "ARGS=--num_workers 4 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR% --teacher_type resnet56 --teacher_path resnet56_cifar100_73p18.pth --kd_params kd_params.json --kd_set FAT_2_2_mix --use_cached_logits --run_tag meandim1"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR% --teacher_type resnet56 --teacher_path resnet56_cifar100_73p18.pth --kd_params kd_params.json --kd_set AT_b_1000 --use_cached_logits --disable_test_until 75 --run_tag NOTATTENTION"
 
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
 "%PYTHON_PATH%" kd_train.py %ARGS%
 "%PYTHON_PATH%" kd_train.py %ARGS%
 "%PYTHON_PATH%" kd_train.py %ARGS%

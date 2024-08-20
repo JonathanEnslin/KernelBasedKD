@@ -43,7 +43,7 @@ class Logger:
 
         self.csv_phase_locs = {
             "test": os.path.join(self.csv_base_dir, "test", self.get_csv_name("test")),
-            "val": os.path.join(self.csv_base_dir, "val", self.get_csv_name("val")),
+            "vali": os.path.join(self.csv_base_dir, "vali", self.get_csv_name("vali")),
             "train": os.path.join(self.csv_base_dir, "train", self.get_csv_name("train")),
             "NA": os.path.join(self.csv_base_dir, "NA", self.get_csv_name("NA")),
         }

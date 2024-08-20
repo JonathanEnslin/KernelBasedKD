@@ -13,8 +13,8 @@ class EvaluationStep:
         self.start_time = start_time
         self.autocast = autocast
         self.mode = mode
-        self.early_stopping = early_stopping if mode == 'validation' else None
-        self.best_model_tracker = best_model_tracker if mode == 'validation' else None
+        self.early_stopping = early_stopping if mode == 'vali' else None
+        self.best_model_tracker = best_model_tracker if mode == 'vali' else None
         self.logger = logger
         self.no_write = no_write
 
@@ -55,7 +55,7 @@ class EvaluationStep:
         top5_error = 100 * (1 - top5_correct / total_samples)
 
         # Log metrics
-        prefix = 'validation' if self.mode == 'validation' else 'test'
+        prefix = 'vali' if self.mode == 'vali' else 'test'
         self.logger(f'--> {self.mode.capitalize()} accuracy: {accuracy:.2f}%')
         
         if not self.no_write:
@@ -68,7 +68,7 @@ class EvaluationStep:
             log_entry = create_log_entry(epoch, self.mode, epoch_loss, accuracy, f1, self.start_time, self.device, top5_error)
             self.logger.log_to_csv(log_entry)
 
-            if self.mode == 'validation':
+            if self.mode == 'vali':
                 if self.best_model_tracker:
                     self.best_model_tracker(epoch_loss, self.model)
 

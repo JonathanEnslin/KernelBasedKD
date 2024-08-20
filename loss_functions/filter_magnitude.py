@@ -20,6 +20,7 @@ class FilterAnalysis(BaseModel):
         self.pre_aggregate_decorators = kwargs.get('pre_aggregate_decorators', [])
         self.initial_aggregate_fn = kwargs.get('initial_aggregate_fn', partial(torch.mean, dim=(0, 1)))
         self.post_aggregate_decorators = kwargs.get('post_aggregate_decorators', [])
+        self.post_flatten_decorators = kwargs.get('post_flatten_decorators', [])
         self.final_decorators = kwargs.get('final_decorators', [])
         self.final_aggregate_fn = kwargs.get('final_aggregate_fn', torch.mean)
 
@@ -49,6 +50,8 @@ class FilterAnalysis(BaseModel):
             agg_s_w = self.initial_aggregate_fn(decorated_s_w)
             agg_t_w = self.initial_aggregate_fn(decorated_t_w)
             
+            s_sign = torch.sign(agg_s_w)
+            t_sign = torch.sign(agg_t_w)
             for decorator in self.post_aggregate_decorators:
                 if decorator == 'restore_signs':
                     agg_s_w = s_sign * agg_s_w
@@ -60,6 +63,16 @@ class FilterAnalysis(BaseModel):
             # flatten
             agg_s_w = agg_s_w.view(-1)
             agg_t_w = agg_t_w.view(-1)
+
+            s_sign = torch.sign(agg_s_w)
+            t_sign = torch.sign(agg_t_w)
+            for decorator in self.post_flatten_decorators:
+                if decorator == 'restore_signs':
+                    agg_s_w = s_sign * agg_s_w
+                    agg_t_w = t_sign * agg_t_w
+                else:
+                    agg_s_w = decorator(agg_s_w)
+                    agg_t_w = decorator(agg_t_w)
 
             diff = agg_s_w - agg_t_w
 

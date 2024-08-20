@@ -80,12 +80,12 @@ def check_validation_args(args, logger: Logger) -> bool:
             logger("Error: --val_size must be specified and be between 0 and 1 when using --use_val.", col="red")
             missing_args = True
         
-        if args.early_stopping_patience is None:
-            logger("Error: --early_stopping_patience must be specified when using --use_val.", col="red")
-            missing_args = True
+        # if args.early_stopping_patience is None:
+        #     logger("Error: --early_stopping_patience must be specified when using --use_val.", col="red")
+        #     missing_args = True
         
-        if args.early_stopping_start_epoch is None:
-            logger("Error: --early_stopping_start_epoch must be specified when using --use_val.", col="red")
-            missing_args = True
+        # if args.early_stopping_start_epoch is None:
+        #     logger("Error: --early_stopping_start_epoch must be specified when using --use_val.", col="red")
+        #     missing_args = True
 
     return not missing_args

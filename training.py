@@ -6,6 +6,7 @@ from datetime import datetime
 import numpy as np
 import random
 
+import torch.nn.functional as F
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
 import utils.config_printer
 import utils.miscellaneous
@@ -171,15 +172,6 @@ def main(args):
                                             student=model,
                                             teacher=teacher)
             kd_mode = distillation_params['distillation_type']
-            # =============== Testing Code =================
-            opts = {
-                # 'initial_aggregate_fn': torch.mean,
-                # Final aggregate should be norm
-                'final_aggregate_fn': torch.linalg.vector_norm,
-            }
-            kd_criterion = FilterAnalysis(model, teacher, **opts)
-            kd_mode = 'Analysis'
-            # ==============================================
         if "vanilla_temperature" in distillation_params:
             if "alpha" not in distillation_params:
                 logger("Warning: a vanilla KD temperature was specified in the kd params, but no alpha value was provided", col='yellow')
@@ -209,34 +201,6 @@ def main(args):
     # loss_handler.add_eval_criterion(lf.attention_transfer.ATLoss(model, teacher, mode='impl'))
     if teacher is not None:
         loss_handler.add_eval_criterion("fAT", lf.filter_at.FilterAttentionTransfer(model, teacher))
-
-    opts = {
-        'detach_student': True,
-        # 'initial_aggregate_fn': torch.mean,
-        # Final aggregate should be norm
-        'final_aggregate_fn': torch.linalg.vector_norm,
-    }
-    loss_handler.add_eval_criterion("all", FilterAnalysis(model, teacher, **opts))
-    opts = {
-        'collect_indices': [0],
-        # 'initial_aggregate_fn': torch.mean,
-        # Final aggregate should be norm
-        'final_aggregate_fn': torch.linalg.vector_norm,
-    }
-    loss_handler.add_eval_criterion("i_0", FilterAnalysis(model, teacher, **opts))
-    # opts = {
-    #     'collect_indices': [1],
-    #     # Final aggregate should be norm
-    #     'final_aggregate_fn': torch.linalg.vector_norm,
-    # }
-    # loss_handler.add_eval_criterion("i_1", FilterAnalysis(model, teacher, **opts))
-    # opts = {
-    #     'collect_indices': [2],
-    #     # Final aggregate should be norm
-    #     'final_aggregate_fn': torch.linalg.vector_norm,
-    # }
-    # loss_handler.add_eval_criterion("i_2", FilterAnalysis(model, teacher, **opts))
-
 
     # Restore hook states to their ideal values
     model.set_hook_device_state(args.device if torch.cuda.is_available() else "cpu")
@@ -299,7 +263,7 @@ def main(args):
     for epoch in range(start_epoch, num_epochs):
         epoch_start_time = datetime.now()
         train_step(epoch)
-        if args.use_val and epoch >= args.disable_val_until_epoch:
+        if args.use_val and (epoch >= args.disable_val_until_epoch or epoch % 10 == 0 or epoch == num_epochs - 1):
             early_stop, val_accuracy = validation_step(epoch)
             if early_stop:
                 break  # Early stopping triggered, exit training loop

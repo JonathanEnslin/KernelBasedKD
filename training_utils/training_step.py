@@ -111,12 +111,12 @@ class TrainStep:
 
                 loss = student_loss + vanilla_loss + kd_loss      
             
-                with torch.no_grad():
-                    self.model.eval()
-                    # process the eval criterions
-                    for crit_name, crit in self.loss_handler.eval_criterions:
-                        eval_losses.append((crit_name, crit(outputs, labels, teacher_logits, features=inputs, indices=indices)))
-                    self.model.train()
+                # with torch.no_grad():
+                #     self.model.eval()
+                #     # process the eval criterions
+                #     for crit_name, crit in self.loss_handler.eval_criterions:
+                #         eval_losses.append((crit_name, crit(outputs, labels, teacher_logits, features=inputs, indices=indices)))
+                #     self.model.train()
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)

@@ -79,14 +79,11 @@
         "--checkpoint_freq", "99999",
         "--dataset", "CIFAR100",
         "--device", "cuda",
-        "--output_data_dir", "analysis_runs",
-        "--teacher_type", "resnet56",
-        "--teacher_path", "resnet56_cifar100_73p18.pth",
-        "--kd_params", "kd_params.json",
-        "--kd_set", "AT_b_1000",
-        "--use_cached_logits",
-        "--disable_test_until", "75",
-        "--run_tag", "NOTATTENTION"
+        "--output_data_dir", "kd_debug",
+        "--use_val",
+        "--val_size", "0.2",
+        "--early_stopping_pat", "9999",
+        "--early_stopping_start", "9999"
       ],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"

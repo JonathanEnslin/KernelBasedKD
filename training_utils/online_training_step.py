@@ -20,7 +20,6 @@ class LossHandler:
         self.extern_vars = {} # Can be used to store any external variables, such as ones used for the step functions
         self.eval_criterions = []
 
-
     def add_eval_criterion(self, name, criterion):
         self.eval_criterions.append((name, criterion))
 
@@ -75,6 +74,39 @@ class TrainStep:
         if self.loss_handler.run_teacher() and self.loss_handler.teacher_model is None:
             logger("Warning: teacher is None, but is specified to be run", col='yellow')
 
+    def train_batch(self, inputs, labels, indices):
+        self.optimizer.zero_grad()
+        teacher_logits = None
+        if self.loss_handler.run_teacher():
+            teacher_logits = self.loss_handler.teacher_model.generate_logits(inputs)
+
+        with self.autocast(self.device.type):
+            outputs = self.model(inputs)
+            student_loss = self.loss_handler.gamma * self.loss_handler.student_criterion(outputs, labels)
+
+            vanilla_loss = torch.tensor(0.0, device=self.device)
+            kd_loss = torch.tensor(0.0, device=self.device)
+            if self.loss_handler.alpha != 0 and self.loss_handler.vanilla_criterion is not None:
+                vanilla_loss = self.loss_handler.alpha * self.loss_handler.vanilla_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
+            if self.loss_handler.beta != 0 and self.loss_handler.kd_criterion is not None:
+                kd_loss = self.loss_handler.beta * self.loss_handler.kd_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
+
+            loss = student_loss + vanilla_loss + kd_loss
+            eval_losses = []
+            with torch.no_grad():
+                self.model.eval()
+                for crit_name, crit in self.loss_handler.eval_criterions:
+                    eval_losses.append((crit_name, crit(outputs, labels, teacher_logits, features=inputs, indices=indices)))
+                self.model.train()
+
+        self.scaler.scale(loss).backward()
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+
+        self.loss_handler.batch_step(batch_idx=indices)
+
+        return loss.item(), student_loss.item(), vanilla_loss.item(), kd_loss.item(), outputs, eval_losses
+
     def __call__(self, epoch):
         self.model.train()
         running_loss = 0.0
@@ -90,44 +122,13 @@ class TrainStep:
         for i, (inputs, labels, indices) in enumerate(self.trainloader):
             inputs, labels = inputs.to(self.device), labels.to(self.device)
             total_samples += labels.size(0)
-            
-            self.optimizer.zero_grad()
 
-            teacher_logits = None
-            if self.loss_handler.run_teacher():
-                teacher_logits = self.loss_handler.teacher_model.generate_logits(inputs)
+            batch_loss, student_loss, vanilla_loss, kd_loss, outputs, eval_losses = self.train_batch(inputs, labels, indices)
 
-            with self.autocast(self.device.type):
-                eval_losses = []
-                outputs = self.model(inputs)
-                student_loss = self.loss_handler.gamma * self.loss_handler.student_criterion(outputs, labels)
-
-                vanilla_loss = torch.tensor(0.0, device=self.device)
-                kd_loss = torch.tensor(0.0, device=self.device)
-                if self.loss_handler.alpha != 0 and self.loss_handler.vanilla_criterion is not None:
-                    vanilla_loss = self.loss_handler.alpha * self.loss_handler.vanilla_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
-                if self.loss_handler.beta != 0 and self.loss_handler.kd_criterion is not None:
-                    kd_loss = self.loss_handler.beta * self.loss_handler.kd_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
-
-                loss = student_loss + vanilla_loss + kd_loss      
-            
-                # with torch.no_grad():
-                #     self.model.eval()
-                #     # process the eval criterions
-                #     for crit_name, crit in self.loss_handler.eval_criterions:
-                #         eval_losses.append((crit_name, crit(outputs, labels, teacher_logits, features=inputs, indices=indices)))
-                #     self.model.train()
-
-            self.scaler.scale(loss).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-
-            self.loss_handler.batch_step(batch_idx=i)
-
-            running_loss += loss.item()
-            running_student_loss += student_loss.item()
-            running_vanilla_loss += vanilla_loss.item()
-            running_kd_loss += kd_loss.item()
+            running_loss += batch_loss
+            running_student_loss += student_loss
+            running_vanilla_loss += vanilla_loss
+            running_kd_loss += kd_loss
             num_batches += 1  # Increment the number of processed batches
             
             _, predicted = torch.max(outputs, 1)
@@ -150,8 +151,7 @@ class TrainStep:
                 loss_str = f"Loss: {mean_loss:.3f}".ljust(15)
                 batch_str = f"[Epoch {epoch}, Batch {i}/{len(self.trainloader) - 1}]".ljust(28)
                 
-                eval_losses = [f'{name}={eval_loss:.4e}' for (name, eval_loss) in eval_losses]
-                eval_losses_str = "[" + " | ".join(eval_losses) + "]"
+                eval_losses_str = "[" + " | ".join(f'{name}={eval_loss:.4e}' for name, eval_loss in eval_losses) + "]"
 
                 self.logger(f'{batch_str} {loss_str} {student_loss_str} {vanilla_loss_str} {kd_loss_str} {eval_losses_str}')
                 self.writer.add_scalar('training_loss', mean_loss, epoch * len(self.trainloader) + i)
