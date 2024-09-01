@@ -5,10 +5,24 @@ from models.base_model import BaseModel
 
 
 class FilterAttentionTransfer(BaseModel):
-    def __init__(self, student: BaseModel, teacher: BaseModel, map_p=2, loss_p=2):
+    def __init__(self, student: BaseModel, teacher: BaseModel, map_p=2, loss_p=2, mean_targets=['C_out', 'C_in']):
         super(FilterAttentionTransfer, self).__init__()
-        self.get_attention_maps = self._semi_flatten_abs_to_p
+        # self.get_attention_maps = self._semi_flatten_abs_to_p
+        # self.get_attention_maps = self._no_flatten_abs_to_p
         # self.get_attention_maps = self._flatten_abs_to_p
+        # self.get_attention_maps = self._flatten_cout_abs_to_p
+
+        if mean_targets == ['C_out', 'C_in']:
+            self.get_attention_maps = self._flatten_abs_to_p
+        elif mean_targets == ['C_out']:
+            self.get_attention_maps = self._flatten_cout_abs_to_p
+        elif mean_targets == ['C_in']:
+            self.get_attention_maps = self._flatten_cin_abs_to_p
+        elif len(mean_targets) == 0:
+            self.get_attention_maps = self._no_flatten_abs_to_p
+        else:
+            raise ValueError("Invalid mean_targets. Must be either ['C_out', 'C_in'], ['C_out'], ['C_in'], or []")
+        
         self.calc_loss = self._compute_f_at_loss_pow
         self.student = student
         self.teacher = teacher
@@ -38,7 +52,7 @@ class FilterAttentionTransfer(BaseModel):
         return model.get_group_final_kernel_weights(detached=detached)
         
 
-    def _semi_flatten_abs_to_p(self, filter_weights, p):
+    def _flatten_cin_abs_to_p(self, filter_weights, p):
         # Filter weights have dimensions (C_out, C_in, H, W)
         # This method returns a tensor of shape (C_out, H * W)
         # And computes attention across C_in for each filter
@@ -49,6 +63,35 @@ class FilterAttentionTransfer(BaseModel):
         filter_weights = torch.pow(filter_weights, p)
         # Next we sum across the C_in dimension
         filter_weights = torch.mean(filter_weights, dim=1)
+        # Next we flatten the filter weights
+        filter_weights = filter_weights.view( -1)
+        normalized_filter_weights = F.normalize(filter_weights, dim=0, eps=1e-6)
+        return normalized_filter_weights
+
+    def _no_flatten_abs_to_p(self, filter_weights, p):
+        # Filter weights have dimensions (C_out, C_in, H, W)
+
+        # First, we take the absolute value of the filter weights
+        filter_weights = torch.abs(filter_weights)
+        # Next we raise the filter weights to the power of p
+        filter_weights = torch.pow(filter_weights, p)
+        # Next we flatten the filter weights
+        filter_weights = filter_weights.view( -1)
+        normalized_filter_weights = F.normalize(filter_weights, dim=0, eps=1e-6)
+        return normalized_filter_weights
+    
+    
+    def _flatten_cout_abs_to_p(self, filter_weights, p):
+        # Filter weights have dimensions (C_out, C_in, H, W)
+        # This method returns a tensor of shape (C_in, H * W)
+        # And computes attention across C_out for each filter
+
+        # First, we take the absolute value of the filter weights
+        filter_weights = torch.abs(filter_weights)
+        # Next we raise the filter weights to the power of p
+        filter_weights = torch.pow(filter_weights, p)
+        # Next we sum across the C_out dimension
+        filter_weights = torch.mean(filter_weights, dim=0)
         # Next we flatten the filter weights
         filter_weights = filter_weights.view( -1)
         normalized_filter_weights = F.normalize(filter_weights, dim=0, eps=1e-6)

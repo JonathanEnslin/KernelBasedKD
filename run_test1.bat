@@ -1,67 +1,85 @@
 set "PYTHON_PATH=C:/Users/jonat/anaconda3/envs/COS700-ML-1/python.exe"
+set "DATA_DIR=kd_exp_runs"
 
-set "DATA_DIR=fat_initial_runs"
-
-set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%"
-
-"%PYTHON_PATH%" kd_train.py %ARGS%
-"%PYTHON_PATH%" kd_train.py %ARGS%
-"%PYTHON_PATH%" kd_train.py %ARGS%
-"%PYTHON_PATH%" kd_train.py %ARGS%
-"%PYTHON_PATH%" kd_train.py %ARGS%
-"%PYTHON_PATH%" kd_train.py %ARGS%
-"%PYTHON_PATH%" kd_train.py %ARGS%
-"%PYTHON_PATH%" kd_train.py %ARGS%
-
-set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR% --teacher_type resnet56 --teacher_path resnet56_cifar100_73p18.pth --kd_params kd_params.json --kd_set AT_b_1000 --use_cached_logits --disable_test_until 75 --run_tag NOTATTENTION"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%  --use_val --val_size 0.2 --early_stopping_pat 9999 --early_stopping_start 9999 --disable_test"
 
 "%PYTHON_PATH%" kd_train.py %ARGS%
 "%PYTHON_PATH%" kd_train.py %ARGS%
 "%PYTHON_PATH%" kd_train.py %ARGS%
 "%PYTHON_PATH%" kd_train.py %ARGS%
 "%PYTHON_PATH%" kd_train.py %ARGS%
+
+set "KD=AT_b_1000"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%  --use_val --val_size 0.2 --early_stopping_pat 9999 --early_stopping_start 9999 --disable_test --kd_params kd_params.json --kd_set %KD% --teacher_path resnet56_cifar100_73p18.pth --teacher_type resnet56"
+
 "%PYTHON_PATH%" kd_train.py %ARGS%
 "%PYTHON_PATH%" kd_train.py %ARGS%
 "%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
 
-@REM set "ARGS=--num_workers 4 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --run_tag Vanilla --output_data_dir %DATA_DIR% --teacher_type resnet56 --teacher_path resnet56_cifar100_73p18.pth --kd_params kd_params.json --kd_set Vanilla --use_cached_logits"
+set "KD=Vanilla"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%  --use_val --val_size 0.2 --early_stopping_pat 9999 --early_stopping_start 9999 --disable_test --kd_params kd_params.json --kd_set %KD% --teacher_path resnet56_cifar100_73p18.pth --teacher_type resnet56"
 
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
 
-@REM set "ARGS=--num_workers 4 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --run_tag stepper1 --output_data_dir %DATA_DIR% --teacher_type resnet56 --teacher_path resnet56_cifar100_73p18.pth --kd_params kd_params.json --kd_set FAT_2_2 --use_cached_logits --batch_stepper sine_modulated_beta --batch_stepper_args period=8,amplitude=1.0,vertical_shift=0.0,through_relu=True"
+set "KD=AT+Vanilla"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%  --use_val --val_size 0.2 --early_stopping_pat 9999 --early_stopping_start 9999 --disable_test --kd_params kd_params.json --kd_set %KD% --teacher_path resnet56_cifar100_73p18.pth --teacher_type resnet56"
 
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
 
-@REM set "ARGS=--num_workers 4 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --run_tag stepper2 --output_data_dir %DATA_DIR% --teacher_type resnet56 --teacher_path resnet56_cifar100_73p18.pth --kd_params kd_params.json --kd_set FAT_2_2 --use_cached_logits --batch_stepper sine_modulated_beta --batch_stepper_args period=100,amplitude=1.0,vertical_shift=1.0,through_relu=False"
+set "KD=kAT_2_2"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%  --use_val --val_size 0.2 --early_stopping_pat 9999 --early_stopping_start 9999 --disable_test --kd_params kd_params.json --kd_set %KD% --teacher_path resnet56_cifar100_73p18.pth --teacher_type resnet56"
 
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
 
-@REM set "ARGS=--num_workers 4 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --run_tag stepper3 --output_data_dir %DATA_DIR% --teacher_type resnet56 --teacher_path resnet56_cifar100_73p18.pth --kd_params kd_params.json --kd_set FAT_2_2 --use_cached_logits --batch_stepper sine_modulated_beta --batch_stepper_args period=6,amplitude=1.0,vertical_shift=0.5,through_relu=False"
+set "KD=kAT_0p4_2"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%  --use_val --val_size 0.2 --early_stopping_pat 9999 --early_stopping_start 9999 --disable_test --kd_params kd_params.json --kd_set %KD% --teacher_path resnet56_cifar100_73p18.pth --teacher_type resnet56"
 
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
 
-@REM set "ARGS=--num_workers 4 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --run_tag stepper_neg --output_data_dir %DATA_DIR% --teacher_type resnet56 --teacher_path resnet56_cifar100_73p18.pth --kd_params kd_params.json --kd_set FAT_2_2 --use_cached_logits --batch_stepper sine_modulated_beta --batch_stepper_args period=6,amplitude=1.0,vertical_shift=-1.0,through_relu=False"
+set "KD=kAT+Vanilla"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%  --use_val --val_size 0.2 --early_stopping_pat 9999 --early_stopping_start 9999 --disable_test --kd_params kd_params.json --kd_set %KD% --teacher_path resnet56_cifar100_73p18.pth --teacher_type resnet56"
 
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
 
+set "KD=kAT_No_Mean"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%  --use_val --val_size 0.2 --early_stopping_pat 9999 --early_stopping_start 9999 --disable_test --kd_params kd_params.json --kd_set %KD% --teacher_path resnet56_cifar100_73p18.pth --teacher_type resnet56"
 
-@REM set "ARGS=--num_workers 4 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --run_tag wot --output_data_dir %DATA_DIR% --teacher_type resnet56 --teacher_path resnet56_cifar100_73p18.pth --kd_params kd_params.json --kd_set wot --use_cached_logits"
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
 
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
-@REM "%PYTHON_PATH%" kd_train.py %ARGS%
+set "KD=kAT_Mean_C_in"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%  --use_val --val_size 0.2 --early_stopping_pat 9999 --early_stopping_start 9999 --disable_test --kd_params kd_params.json --kd_set %KD% --teacher_path resnet56_cifar100_73p18.pth --teacher_type resnet56"
 
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
 
+set "KD=kAT_Mean_C_out"
+set "ARGS=--num_workers 8 --params params.json --param_set params3 --model_name resnet20 --checkpoint_freq 99999 --dataset CIFAR100 --device cuda --output_data_dir %DATA_DIR%  --use_val --val_size 0.2 --early_stopping_pat 9999 --early_stopping_start 9999 --disable_test --kd_params kd_params.json --kd_set %KD% --teacher_path resnet56_cifar100_73p18.pth --teacher_type resnet56"
+
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%
+"%PYTHON_PATH%" kd_train.py %ARGS%

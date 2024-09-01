@@ -9,16 +9,22 @@
       },
       "distillation_type": "at",
       "gamma": 1.0,
-      "alpha": 0.0,
       "beta": 1000.0,
-      "vanilla_temperature": 4.0,
       "params": {
         "mode": "impl"
       }
     },
+    "Vanilla": {
+      "notes": {
+        "description": "Standard vanilla training using the hparams from the original paper by Hinton et al."
+      },
+      "gamma": 0.2,
+      "alpha": 0.8,
+      "vanilla_temperature": 4.0
+    },
     "AT+Vanilla": {
       "notes": {
-        "description": "Standard attention transfer setup with beta=1000"
+        "description": "A combination of vanilla training and attention transfer"
       },
       "distillation_type": "at",
       "gamma": 0.2,
@@ -29,19 +35,82 @@
         "mode": "impl"
       }
   },
-  "FAT_2_2": {
+  "kAT_2_2": {
     "notes": {
       "description": "Filter attention transfer"
     },
     "distillation_type": "filter_at",
     "gamma": 1.0,
-    "alpha": 0.0,
-    "beta": 5.0,
-    "vanilla_temperature": 4.0,
+    "beta": 1000.0,
     "params": {
       "map_p": 2.0,
       "loss_p": 2.0
     }
-  }
+  },
+  "kAT_0p4_2": {
+    "notes": {
+      "description": "Filter attention transfer"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 1.0,
+    "beta": 1000.0,
+    "params": {
+      "map_p": 0.4,
+      "loss_p": 2.0
+    }
+  },
+  "kAT+Vanilla": {
+    "notes": {
+      "description": "Filter attention transfer combined with vanilla training"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 0.2,
+    "alpha": 0.8,
+    "vanilla_temperature": 4.0,
+    "beta": 1000.0,
+    "params": {
+      "map_p": 0.4,
+      "loss_p": 2.0
+    }
+  },
+  "kAT_No_Mean": {
+    "notes": {
+      "description": "Filter attention transfer without averaging"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 1.0,
+    "beta": 1000.0,
+    "params": {
+      "map_p": 2.0,
+      "loss_p": 2.0,
+      "mean_targets": []
+    }
+  },
+  "kAT_Mean_C_in": {
+    "notes": {
+      "description": "Filter attention transfer with averaging over C_in"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 1.0,
+    "beta": 1000.0,
+    "params": {
+      "map_p": 2.0,
+      "loss_p": 2.0,
+      "mean_targets": ["C_in"]
+    }
+  },
+  "kAT_Mean_C_out": {
+    "notes": {
+      "description": "Filter attention transfer with averaging over C_out"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 1.0,
+      "beta": 1000.0,
+      "params": {
+        "map_p": 2.0,
+        "loss_p": 2.0,
+        "mean_targets": ["C_out"]
+      }
+    }
 }
   
