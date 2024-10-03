@@ -105,10 +105,11 @@ class TrainStep:
                 vanilla_loss = torch.tensor(0.0, device=self.device)
                 kd_loss = torch.tensor(0.0, device=self.device)
                 if self.loss_handler.alpha != 0 and self.loss_handler.vanilla_criterion is not None:
-                    vanilla_loss = self.loss_handler.alpha * self.loss_handler.vanilla_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
+                    vanilla_loss = self.loss_handler.alpha * self.loss_handler.vanilla_criterion(outputs, teacher_logits=teacher_logits, labels=labels, features=inputs, indices=indices)
                 if self.loss_handler.beta != 0 and self.loss_handler.kd_criterion is not None:
-                    kd_loss = self.loss_handler.beta * self.loss_handler.kd_criterion(outputs, labels, teacher_logits, features=inputs, indices=indices)
+                    kd_loss = self.loss_handler.beta * self.loss_handler.kd_criterion(outputs, labels=labels, teacher_logits=teacher_logits, features=inputs, indices=indices)
 
+                # loss = kd_loss      
                 loss = student_loss + vanilla_loss + kd_loss      
             
                 # with torch.no_grad():

@@ -109,6 +109,13 @@ class BaseModel(nn.Module):
         torch.save(self.state_dict(), path)
 
 
+    def get_kernel_weights_subset(self, indices, detached=True):
+        weights = [self.all_conv_layers[i].weight for i in indices]
+        if detached:
+            return self._detach_list(weights)
+        return weights
+
+
     def get_group_final_kernel_weights(self, detached=True):
         weights = [kernel.weight for kernel in self.group_final_conv_layers]
         if detached:

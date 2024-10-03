@@ -4,13 +4,15 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import MultiStepLR
 from torchvision import datasets, transforms
 from tqdm import tqdm  # Progress bar
-from loss_functions.filter_at import FilterAttentionTransfer
+from loss_functions.factor_transfer import FTLoss
+from loss_functions.filter_factor import KFTLoss
 from loss_functions.vanilla import VanillaKDLoss
 import numpy as np
 import json  # For saving metrics to a JSON file
 
 # Assuming ResNet56 and ResNet20 exist and take num_classes as a parameter
 from models.resnet import resnet20, resnet56
+from models.FT.encoders import Paraphraser, Translator
 
 def save_model_weights(model, title):
     # Get all kernel weights, detached from the computation graph
@@ -18,7 +20,7 @@ def save_model_weights(model, title):
     # Convert to numpy arrays
     weights_np = [w.cpu().numpy() for w in weights]
     # Save to an npz file
-    np.savez(rf'e:\DLModels\model_weights\{title}.npz', *weights_np)
+    np.savez(rf'e:\DLModels\kft\model_weights\{title}.npz', *weights_np)
 
 if __name__ == '__main__':
     # Hyperparameters
@@ -37,12 +39,12 @@ if __name__ == '__main__':
                 "type": "MultiStepLR",
                 "parameters": {
                     "gamma": 0.2,
-                    "milestones": [60, 80, 90, 100]
+                    "milestones": [60, 80, 90]
                 }
             }
         ],
         "training": {
-            "max_epochs": 110,
+            "max_epochs": 100,
             "batch_size": 128
         }
     }
@@ -61,38 +63,68 @@ if __name__ == '__main__':
     ])
 
     trainset = datasets.CIFAR100(root='./data', train=True, download=True, transform=transform_train)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=hparams['training']['batch_size'], shuffle=True, num_workers=4, persistent_workers=True, pin_memory=True, drop_last=True)
+    num_workers = 4
+    persistent_workers = True if num_workers > 0 else False
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=hparams['training']['batch_size'], shuffle=True, num_workers=num_workers, persistent_workers=persistent_workers, pin_memory=True, drop_last=True)
 
+    num_workers = 2
+    persistent_workers = True if num_workers > 0 else False
     testset = datasets.CIFAR100(root='./data', train=False, download=True, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=hparams['training']['batch_size'], shuffle=False, num_workers=2, persistent_workers=True)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=hparams['training']['batch_size'], shuffle=False, num_workers=num_workers, persistent_workers=persistent_workers)
 
     # Models
     num_classes = 100
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Load pretrained teacher
     teacher = resnet56(num_classes=num_classes).to(device)
-    student = resnet20(num_classes=num_classes).to(device)
-
+    teacher_weights_path = r'C:\Users\jonat\OneDrive\UNIV stuff\CS4\COS700\Dev\KernelBasedKD\teacher_models\models\resnet56\resnet56_cifar100_73p18.pth'
+    teacher.load(teacher_weights_path)
+    teacher = teacher.to(device)
+    teacher.eval()
     teacher.set_hook_device_state('same')
+
+    # Load paraphraser
+    ft_k = 0.5
+    ft_use_bn = False
+    paraphraser = Paraphraser(teacher.get_kernel_weights_subset([teacher.group3indices[-1]])[-1].shape, k=ft_k, use_bn=ft_use_bn, use_linear_last_activation=True).to(device)
+    paraphraser_path = r'teacher_models\models\resnet56\paraphraser\resnet56_cifar100_73p18.kernel_paraphraser_k_0.5_bn0.pt'
+    paraphraser.load(paraphraser_path)
+    paraphraser = paraphraser.to(device)
+    paraphraser.set_hook_device_state('same')
+    paraphraser.eval()
+
+    # test_loss = nn.L1Loss()
+    # k_weights = teacher.get_kernel_weights_subset([teacher.group3indices[-1]], detached=True)[-1].to(device)
+    # _, rec = paraphraser(k_weights)
+    # print(f"Paraphraser L1 loss: {test_loss(k_weights, rec).item()}")
+    # quit()
+
+    # Initialize student
+    student = resnet20(num_classes=num_classes).to(device)
     student.set_hook_device_state('same')
 
+    # Initialise the translator
+    translator = Translator(
+        student.get_kernel_weights_subset([student.group3indices[-1]])[-1].shape, 
+        teacher.get_kernel_weights_subset([teacher.group3indices[-1]])[-1].shape, 
+        k=ft_k, use_bn=ft_use_bn).to(device)
+    translator.set_hook_device_state('same')
 
-    # Optimizers
-    optimizer_teacher = optim.SGD(teacher.parameters(), **hparams['optimizer']['parameters'])
+    # Optimizer for student
     optimizer_student = optim.SGD(student.parameters(), **hparams['optimizer']['parameters'])
+    optimizer_factor = optim.SGD(translator.parameters(), lr=0.8, momentum=0.99, weight_decay=0.0)
 
-    # Schedulers
-    scheduler_teacher = MultiStepLR(optimizer_teacher, **hparams['schedulers'][0]['parameters'])
+    # Scheduler for student
     scheduler_student = MultiStepLR(optimizer_student, **hparams['schedulers'][0]['parameters'])
 
     # Loss function
     criterion = nn.CrossEntropyLoss()
 
-    # kd variables
-    kd_criterion = FilterAttentionTransfer(student=student, teacher=teacher, map_p=0.5, loss_p=2, use_abs=False, mean_targets=['C_in'])
-    teacher_kd_criterion = FilterAttentionTransfer(student=teacher, teacher=student, map_p=0.5, loss_p=2, use_abs=False, mean_targets=[])
+    # KD loss functions
+    kd_criterion = KFTLoss(translator, paraphraser, student, teacher, group='group3', p=1)
     vanilla_kd_criterion = VanillaKDLoss(4)
-    # kd_criterion = FilterAttentionTransfer(student=student, teacher=teacher, map_p=0.5, loss_p=2, use_abs=False, mean_targets=['C_out', 'C_in'])
-    beta = 1000.0
+    beta = 500
 
     # Define the evaluate function
     def evaluate(model, dataloader):
@@ -157,8 +189,8 @@ if __name__ == '__main__':
         metrics = {
             'mean': mean,
             'abs_mean': abs_mean,
-            'mean_dim01': mean_dim01.numpy().tolist(),
-            'abs_mean_dim01': abs_mean_dim01.numpy().tolist(),
+            'mean_dim01': mean_dim01.cpu().numpy().tolist(),
+            'abs_mean_dim01': abs_mean_dim01.cpu().numpy().tolist(),
             'l2_norm': l2_norm,
             'max_norm': max_norm,
             'sparsity': sparsity,
@@ -167,7 +199,6 @@ if __name__ == '__main__':
         }
         
         return metrics
-
 
     def collect_metrics_for_network_layers(layers_weights):
         metrics_list = []
@@ -183,107 +214,83 @@ if __name__ == '__main__':
         
         return metrics_list
 
-
     # Initialize lists to collect metrics
-    teacher_metrics_collection = []
     student_metrics_collection = []
 
     # Training loop
     for epoch in range(hparams['training']['max_epochs']):
-        teacher.train()
+        teacher.eval()
+        paraphraser.eval()
         student.train()
+        translator.train()
 
-        running_loss_teacher = 0.0
         running_loss_student = 0.0
         running_kd_loss = 0.0
 
         progress_bar = tqdm(trainloader, desc=f"Epoch {epoch + 1}/{hparams['training']['max_epochs']}", ncols=100)
-        # Save the model weights at the beginning of each epoch
-        save_model_weights(teacher, f'teacher_epoch_{epoch}')
+        # Save the student model weights at the beginning of each epoch
         save_model_weights(student, f'student_epoch_{epoch}')
         for batch_idx, (inputs, targets) in enumerate(progress_bar):
-                        # Track metrics every N minibatches
+            # Track metrics every N minibatches
             N = 25
             if (batch_idx) % N == 0:
-                teacher_metrics = collect_metrics_for_network_layers([w.cpu() for w in teacher.get_all_kernel_weights(True)])
                 student_metrics = collect_metrics_for_network_layers([w.cpu() for w in student.get_all_kernel_weights(True)])
                 
-                teacher_metrics_collection.append({
-                    'epoch': epoch,
-                    'batch_idx': batch_idx,
-                    'metrics': teacher_metrics
-                })
                 student_metrics_collection.append({
                     'epoch': epoch,
                     'batch_idx': batch_idx,
                     'metrics': student_metrics
                 })
 
-
             inputs, targets = inputs.to(device), targets.to(device)
 
             # Zero the parameter gradients
-            optimizer_teacher.zero_grad()
             optimizer_student.zero_grad()
+            optimizer_factor.zero_grad()
 
             # Forward
-            outputs_teacher = teacher(inputs)
             outputs_student = student(inputs)
 
+            # Obtain teacher outputs without computing gradients
+            with torch.no_grad():
+                outputs_teacher = teacher(inputs)
+
             # Loss
-            loss_teacher = criterion(outputs_teacher, targets)
-            los_kd_teacher = beta * teacher_kd_criterion(outputs_teacher, outputs_student, targets, features=inputs, indices=None)
             loss_ce = criterion(outputs_student, targets)
             vanilla_loss = vanilla_kd_criterion(outputs_student, outputs_teacher, targets, features=inputs, indices=None)
             loss_kd = beta * kd_criterion(outputs_student, outputs_teacher, targets, features=inputs, indices=None)
-            # loss_student = 0.2 * loss_ce + loss_kd
-            loss_student = 0.2 * loss_ce + 0.8 * vanilla_loss
-            # loss_student = 0.2 * loss_ce + loss_kd + 0.8 * vanilla_loss
-            loss_teacher = loss_teacher
-            # loss_teacher = 0.0*(loss_teacher + los_kd_teacher)
-            
-            # loss_student = loss_ce
+            loss_student = 1.0 * loss_ce + 0.0 * vanilla_loss +  loss_kd
 
             # Backward + optimize
-            loss_teacher.backward()
-            optimizer_teacher.step()
-
             loss_student.backward()
             optimizer_student.step()
+            optimizer_factor.step()
 
             # Track loss
-            running_loss_teacher += loss_teacher.item()
             running_loss_student += loss_student.item()
             running_kd_loss += loss_kd.item()
 
-
             # Print running loss every 100 batches
             if (batch_idx + 1) % 100 == 0:
-                print(f"[{batch_idx + 1}] T. L.: {running_loss_teacher / (batch_idx + 1):.4f}  --  "
-                    f"S. L.: {running_loss_student / (batch_idx + 1):.4f}  |  KD L.: {running_kd_loss / (batch_idx + 1):.4f}")
+                print(f"[{batch_idx + 1}] S. L.: {running_loss_student / (batch_idx + 1):.4f}  |  KD L.: {running_kd_loss / (batch_idx + 1):.4f}")
 
-        # Step the schedulers
-        scheduler_teacher.step()
+        # Step the scheduler
         scheduler_student.step()
 
         # Evaluate every 5 epochs
         if (epoch + 1) % 5 == 0:
-            teacher_accuracy = evaluate(teacher, testloader)
             student_accuracy = evaluate(student, testloader)
             print(f'Epoch [{epoch + 1}/{hparams["training"]["max_epochs"]}] '
-                f'Teacher Accuracy: {teacher_accuracy:.2f}% '
-                f'Student Accuracy: {student_accuracy:.2f}%')
+                  f'Student Accuracy: {student_accuracy:.2f}%')
 
     # Save metrics to JSON files
-    with open(r'e:\DLModels\teacher_metrics.json', 'w') as f:
-        json.dump(teacher_metrics_collection, f, indent=4)
-
-    with open(r'e:\DLModels\student_metrics.json', 'w') as f:
+    with open(r'e:\DLModels\kft\student_metrics.json', 'w') as f:
         json.dump(student_metrics_collection, f, indent=4)
 
+    # Save the final student model
+    save_model_weights(student, 'student_final')
+
     # Final evaluation
-    teacher_accuracy = evaluate(teacher, testloader)
     student_accuracy = evaluate(student, testloader)
 
-    print(f'Final Teacher Model Accuracy: {teacher_accuracy:.2f}%')
     print(f'Final Student Model Accuracy: {student_accuracy:.2f}%')

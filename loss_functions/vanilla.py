@@ -20,7 +20,8 @@ class VanillaKDLoss(BaseLoss):
     def run_teacher(self):
         return self.cached_teacher_logits is None
 
-    def forward(self, student_logits, labels, teacher_logits=None, features=None, indices=None):
+
+    def forward(self, student_logits, teacher_logits, labels, features=None, indices=None):
         """
         Forward pass for computing the KD loss.
 
@@ -38,6 +39,9 @@ class VanillaKDLoss(BaseLoss):
 
         if teacher_logits is None:
             teacher_logits = self.cached_teacher_logits[indices]
+
+        # detach teacher logits
+        teacher_logits = teacher_logits.detach()
 
         soft_log_probs = F.log_softmax(student_logits / self.temperature, dim=1)
         soft_targets = F.softmax(teacher_logits / self.temperature, dim=1)

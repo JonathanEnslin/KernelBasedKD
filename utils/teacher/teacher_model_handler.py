@@ -7,7 +7,7 @@ class TeacherModelHandler:
     """
     A handler class for loading a teacher model, generating and saving logits and feature maps.
     """
-    def __init__(self, model_class, teacher_file_name, device, num_classes=100, base_folder='teacher_models', printer=print):
+    def __init__(self, teacher_model, teacher_type, teacher_file_name, device, num_classes=100, base_folder='teacher_models', printer=print):
         """
         Initializes the TeacherModelHandler.
         
@@ -26,14 +26,14 @@ class TeacherModelHandler:
         self.logits_folder = os.path.join(self.base_folder, 'cache', 'logits')
         self.feature_maps_folder = os.path.join(self.base_folder, 'cache', 'feature_maps')
 
-        self.model_class = model_class
+        self.teacher_type = teacher_type
         self.teacher_file_name = teacher_file_name
         self.device = device
         self.num_classes = num_classes
 
         self._init_paths()
         self._create_directories()
-        self.teacher: BaseModel = model_class(num_classes=num_classes)
+        self.teacher: BaseModel = teacher_model
 
 
     def load_teacher_model(self):
@@ -92,7 +92,7 @@ class TeacherModelHandler:
         """
         Initializes the file paths for the teacher model, logits, and feature maps.
         """
-        self.teacher_subfolder = self.model_class.__name__
+        self.teacher_subfolder = self.teacher_type
         self.teacher_path = os.path.join(self.teacher_folder, self.teacher_subfolder, self.teacher_file_name)
 
         self.logits_subfolder = self.teacher_subfolder

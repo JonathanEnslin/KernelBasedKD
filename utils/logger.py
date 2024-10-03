@@ -84,7 +84,8 @@ class Logger:
 
     def log_to_csv(self, data):
         phase = data.get('phase', 'NA')
-        csv_file = self.csv_phase_locs[phase]
+        phase_key = "vali" if "val" in phase else phase
+        csv_file = self.csv_phase_locs[phase_key]
         Logger.create_dir_if_not_exists(os.path.dirname(csv_file))
         file_exists = os.path.isfile(csv_file)
         with open(csv_file, 'a', newline='') as csvfile:

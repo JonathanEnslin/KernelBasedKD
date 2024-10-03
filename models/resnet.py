@@ -124,6 +124,11 @@ class ResNet(BaseModel):
         self.conv1 = nn.Conv2d(3, num_filters[0], kernel_size=3, padding=1,
                                bias=False)
         
+        self.conv1indices = [0]
+        self.group1indices = list(range(1, 1 + 2*n))
+        self.group2indices = list(range(1 + 2*n, 1 + 4*n))
+        self.group3indices = list(range(1 + 4*n, 1 + 6*n))
+
         # ============= filter code ===============
         self.all_conv_layers = [self.conv1]
         self.group_final_conv_layers = []
@@ -251,12 +256,49 @@ def resnet110(**kwargs):
     return ResNet(110, [16, 16, 32, 64], 'basicblock', **kwargs)
 
 
+def resnet20x2(**kwargs):
+    return ResNet(20, [32, 32, 64, 128], 'basicblock', **kwargs)
+
+
 def resnet8x4(**kwargs):
     return ResNet(8, [32, 64, 128, 256], 'basicblock', **kwargs)
 
 
+def resnet20x4(**kwargs):
+    return ResNet(20, [32, 64, 128, 256], 'basicblock', **kwargs)
+
+
 def resnet32x4(**kwargs):
     return ResNet(32, [32, 64, 128, 256], 'basicblock', **kwargs)
+
+# layer indices
+resnet20_layers = {
+    "conv1": [0],  # 1 initial conv layer
+    "layer1": list(range(1, 7)),   # 2n = 6 layers for layer1 (residual blocks)
+    "layer2": list(range(7, 13)),  # 2n = 6 layers for layer2
+    "layer3": list(range(13, 19))  # 2n = 6 layers for layer3
+}
+
+resnet32_layers = {
+    "conv1": [0],
+    "layer1": list(range(1, 11)),  # 2n = 10 layers
+    "layer2": list(range(11, 21)), # 2n = 10 layers
+    "layer3": list(range(21, 31))  # 2n = 10 layers
+}
+
+resnet56_layers = {
+    "conv1": [0],
+    "layer1": list(range(1, 19)),  # 2n = 18 layers
+    "layer2": list(range(19, 37)), # 2n = 18 layers
+    "layer3": list(range(37, 55))  # 2n = 18 layers
+}
+
+resnet110_layers = {
+    "conv1": [0],
+    "layer1": list(range(1, 37)),  # 2n = 36 layers
+    "layer2": list(range(37, 73)), # 2n = 36 layers
+    "layer3": list(range(73, 109)) # 2n = 36 layers
+}
 
 
 if __name__ == '__main__':
@@ -275,3 +317,8 @@ if __name__ == '__main__':
             print('pass')
         else:
             print('warning')
+
+    print(net.conv1indices)
+    print(net.group1indices)
+    print(net.group2indices)
+    print(net.group3indices)

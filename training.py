@@ -6,7 +6,6 @@ from datetime import datetime
 import numpy as np
 import random
 
-import torch.nn.functional as F
 from utils.checkpoint_utils import save_checkpoint, load_checkpoint
 import utils.config_printer
 import utils.miscellaneous
@@ -22,7 +21,6 @@ from training_utils.validation_step import ValidationStep
 from training_utils.testing_step import TestStep
 
 import loss_functions as lf
-from loss_functions.attention_transfer import ATLoss
 from models.resnet import resnet56
 from utils.teacher.teacher_model_handler import TeacherModelHandler
 from utils.amp_grad_scaling_handler import get_amp_and_grad_scaler
@@ -31,7 +29,6 @@ from utils.logger import Logger
 from utils.distillation.distillation_config import *
 import steppers.steppers as steppers
 import utils
-from loss_functions.filter_magnitude import FilterAnalysis
 
 import args as program_args
 
@@ -131,9 +128,11 @@ def main(args):
     teacher=None
     kd_mode = 'base'
     if args.teacher_path is not None:
+        teacher_model = initialize_model(args.teacher_type, num_classes=num_classes, device=device)
         # Load and cache (if specified) teacher model data
         logger("Setting up teacher model")
-        teacher_model_handler = TeacherModelHandler(model_class=resnet56,
+        teacher_model_handler = TeacherModelHandler(teacher_model=teacher_model,
+                                                    teacher_type=args.teacher_type,
                                                     teacher_file_name=args.teacher_path,
                                                     device=device,
                                                     num_classes=num_classes,

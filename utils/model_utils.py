@@ -22,9 +22,15 @@ def initialize_model(model_name, num_classes, device, logger=print):
     elif model_name == 'dummy_teacher':
         from models.dummy_teacher_model import DummyTeacherModel
         model = DummyTeacherModel(3, 100).to(device)
+    elif model_name == 'resnet20x2':
+        from models.resnet import resnet20x2
+        model = resnet20x2(num_classes=num_classes).to(device)
     elif model_name == 'resnet8x4':
         from models.resnet import resnet8x4
         model = resnet8x4(num_classes=num_classes).to(device)
+    elif model_name == 'resnet20x4':
+        from models.resnet import resnet20x4
+        model = resnet20x4(num_classes=num_classes).to(device)
     elif model_name == 'resnet32x4':
         from models.resnet import resnet32x4
         model = resnet32x4(num_classes=num_classes).to(device)
