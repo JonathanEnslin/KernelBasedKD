@@ -20,17 +20,17 @@ from utils.logger import Logger
 
 from mock_args import Args as MockArgs
 
-NAME = 'no_name_provided'
 
 # Global variables
+LOG_DIR = "hpar_tuning_logs/base" # SHOULD CHANGE PER FILE
 
 # PARAMS
+NAME = 'no_name_provided'
 FOLDS = 5  # Number of folds for K-fold cross-validation
 PERCENTILE_PRUNE = 80
 DATASET = "CIFAR100"
 STUDENT_MODEL = "resnet20"
 LOGGER_TAG = "base"
-LOG_DIR = "hpar_tuning_logs/base"
 
 
 folds = None
@@ -51,7 +51,7 @@ scheduler_params = {
 }
 
 training_params = {
-    "max_epochs": 2,
+    "max_epochs": 92,
     "batch_size": 128
 }
 
@@ -164,7 +164,7 @@ def kfold_objective(param, eval_index):
     return val_accuracy
 
 # Main section to load dataset and perform K-fold splits once
-def main(dataset_name="CIFAR10", requested_device="cuda"):
+def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx'):
     global folds, full_dataset, num_classes, device, shared_accuracies  # Use global variables
     global NAME, FOLDS
 
@@ -224,6 +224,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, choices=['CIFAR10', 'CIFAR100'], required=True, help='Dataset to use')
     parser.add_argument('--name', type=str, required=True, help='Name of the hyperparameter tuning run')
     parser.add_argument('--pruning-percentile', type=int, default=80, help='Pruning percentile for early stopping')
+    parser.add_argument('--runtime', type=str, required=True, help='Runtime for the hyperparameter tuning run')
     parser.add_argument('--folds', type=int, default=5, help='Number of folds for K-Fold cross-validation')    
 
     args = parser.parse_args()
@@ -233,4 +234,4 @@ if __name__ == "__main__":
     PERCENTILE_PRUNE = args.pruning_percentile
     FOLDS = args.folds
 
-    main(dataset_name=DATASET, requested_device='cuda')  # Change this to "CIFAR100" if needed
+    main(dataset_name=DATASET, requested_device='cuda', runtime=args.runtime)  # Change this to "CIFAR100" if needed
