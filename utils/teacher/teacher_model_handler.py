@@ -127,15 +127,15 @@ class TeacherModelHandler:
         """
         self.logger("Teacher logits and feature map files already exist. Loading...")
         if get_logits:
-            self.teacher_logits, self.teacher_labels = torch.load(self.logits_path)
+            self.teacher_logits, self.teacher_labels = torch.load(self.logits_path, map_location=self.device)
             self.teacher_logits.to(self.device)
         else:
             self.teacher_logits = None
             self.teacher_labels = None
 
         if get_fmaps:
-            self.teacher_pre_activation_fmaps = torch.load(self.pre_activation_feature_maps_path)
-            self.teacher_post_activation_fmaps = torch.load(self.post_activation_fmaps_path)
+            self.teacher_pre_activation_fmaps = torch.load(self.pre_activation_feature_maps_path, map_location=self.device)
+            self.teacher_post_activation_fmaps = torch.load(self.post_activation_fmaps_path, map_location=self.device)
         else:
             self.teacher_pre_activation_fmaps = None
             self.teacher_post_activation_fmaps = None
