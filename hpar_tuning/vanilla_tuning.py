@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import multiprocessing
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from functools import partial
@@ -106,9 +107,9 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
     for epoch in range(training_params["max_epochs"]):
         logger(f"Fold {eval_index + 1}, Epoch {epoch + 1}")
         stu_model.train()
-        train_loss = 0.0
-        vanilla_loss = 0.0
-        tot_loss = 0.0
+        tracked_train_loss = 0.0
+        tracked_vanilla_loss = 0.0
+        tracked_tot_loss = 0.0
         for batch_idx, (inputs, targets, indices) in enumerate(train_loader):
             if batch_idx % 150 == 0:
                 logger(f"Batch {batch_idx + 1}/{len(train_loader)}")
@@ -118,15 +119,22 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
             optimizer.zero_grad()
             outputs = stu_model(inputs)
             loss = criterion(outputs, targets)
-            train_loss += loss.item()
+            tracked_train_loss += loss.item()
             vanilla_loss = vanilla_criterion(student_logits=outputs, teacher_logits=None, labels=None, features=None, indices=indices)
-            vanilla_loss += vanilla_loss.item()
+            tracked_vanilla_loss += vanilla_loss.item()
             loss = alpha * loss + gamma * vanilla_loss
-            tot_loss += loss.item()
+            tracked_tot_loss += loss.item()
             loss.backward()
             optimizer.step()
 
-        logger.log_to_csv({'phase': 'train', 'student_loss': train_loss / len(train_loader), "accuracy": -1.0, 'vanilla_loss': vanilla_loss, 'total_loss': tot_loss})
+        logger.log_to_csv({'phase': 'train', 
+                           'epoch': epoch, 
+                           'student_loss': tracked_train_loss / len(train_loader), 
+                           'accuracy': -1.0, 
+                           'vanilla_loss': tracked_vanilla_loss / len(train_loader), 
+                           'total_loss': tracked_tot_loss / len(train_loader),
+                           'time': time.time(),
+                           })
         # Step the scheduler after each epoch
         scheduler.step()
 
