@@ -70,7 +70,7 @@ class TeacherModelHandler:
         if not generate_logits and not generate_feature_maps:
             return None, None, None
 
-        if self._check_existing_logits_and_feature_maps():
+        if self._check_existing_logits_and_feature_maps(generate_logits, generate_feature_maps):
             self._load_existing_logits_and_feature_maps(generate_logits, generate_feature_maps)
         else:
             self._generate_and_save_logits_and_feature_maps(trainloader, train_dataset, generate_logits, generate_feature_maps)
@@ -111,14 +111,14 @@ class TeacherModelHandler:
         os.makedirs(os.path.join(self.feature_maps_folder, self.feature_maps_subfolder), exist_ok=True)
 
 
-    def _check_existing_logits_and_feature_maps(self):
+    def _check_existing_logits_and_feature_maps(self, should_get_logits, should_get_fmaps):
         """
         Checks if the logits and feature maps files already exist.
         
         Returns:
             True if all files exist, False otherwise.
         """
-        return os.path.exists(self.logits_path) and os.path.exists(self.pre_activation_feature_maps_path) and os.path.exists(self.post_activation_fmaps_path)
+        return (os.path.exists(self.logits_path) or not should_get_logits) and ((os.path.exists(self.pre_activation_feature_maps_path) and os.path.exists(self.post_activation_fmaps_path)) or not should_get_fmaps)
 
 
     def _load_existing_logits_and_feature_maps(self, get_logits, get_fmaps):

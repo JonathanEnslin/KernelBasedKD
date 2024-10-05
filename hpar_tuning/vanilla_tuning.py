@@ -2,6 +2,7 @@ import os
 import sys
 import multiprocessing
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from functools import partial
 
 import pyhopper
 import torch
@@ -13,33 +14,17 @@ import torchvision.transforms as transforms
 from sklearn.model_selection import KFold
 import numpy as np
 
-import utils.data.indexed_dataset as index_datasets
-import models.resnet as resnet_models  # Assuming resnet20 is defined in this module
 from utils.data.dataset_getters import get_dataset_info
 from utils.logger import Logger
+from utils.teacher.teacher_model_handler import TeacherModelHandler
+from utils.model_utils import initialize_model
+from loss_functions.vanilla import VanillaKDLoss
 
 from mock_args import Args as MockArgs
 
 
-# Global variables
-LOG_DIR = "hpar_tuning_logs/base" # SHOULD CHANGE PER FILE
-
-# PARAMS
-NAME = 'no_name_provided'
-FOLDS = 5  # Number of folds for K-fold cross-validation
-PERCENTILE_PRUNE = 80
-DATASET = "CIFAR100"
-STUDENT_MODEL = "resnet20"
-LOGGER_TAG = "base"
-
-NUM_WORKERS = 0
-PERSISTENT_WORKERS = False
-
-
-folds = None
-full_dataset = None
-num_classes = None
-shared_accuracies = None  # Will be initialized with a multiprocessing Manager
+GENERATE_LOGITS = True
+GENERATE_FEATURE_MAPS = False
 
 # Fixed parameters
 optimizer_params = {
@@ -51,36 +36,31 @@ optimizer_params = {
 scheduler_params = {
     "gamma": 0.2,
     "milestones": [45, 65, 72]
-    # "milestones": [60, 80, 90]
 }
 
 training_params = {
     "max_epochs": 75,
-    # "max_epochs": 100,
     "batch_size": 128
 }
 
-scheduler_params = {
-    "gamma": 0.2,
-}
-
 # Function to split the dataset into folds
-def prepare_kfold_splits(dataset, n_splits=FOLDS):
+def prepare_kfold_splits(dataset, n_splits=5):
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=112)  # Added a fixed random_state for reproducibility
     return list(kf.split(dataset))  # Returns a list of (train_indices, val_indices) tuples
 
 # Noisy objective function for K-Folds (Only takes param and eval_index)
-def kfold_objective(param, eval_index):
+def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device, log_dir, 
+                    dataset, student_type, logger_tag, percentile_prune, num_workers, 
+                    persistent_workers, shared_accuracies, teacher_type, tea_model, 
+                    tea_logits, tea_preactivation_fmaps, tea_postactivation_fmaps):
     import time
-    global folds, full_dataset, num_classes, device, shared_accuracies  # Access global variables
-    global DATASET, STUDENT_MODEL, LOGGER_TAG, LOG_DIR, PERCENTILE_PRUNE, NUM_WORKERS, PERSISTENT_WORKERS
 
     args = MockArgs()
-    args.dataset = DATASET
-    args.model_name = STUDENT_MODEL
+    args.dataset = dataset
+    args.model_name = student_type
     args.param_set = 'tune'
 
-    logger = Logger(args=args, log_to_file=True, data_dir=LOG_DIR, run_tag=LOGGER_TAG, teacher_type=None, kd_set=None)
+    logger = Logger(args=args, log_to_file=True, data_dir=log_dir, run_tag=logger_tag, teacher_type=teacher_type, kd_set=None)
 
     logger(f"Starting evaluation for Fold {eval_index + 1}")
     logger(f"Parameters:\n{param}")
@@ -91,54 +71,67 @@ def kfold_objective(param, eval_index):
     val_subset = Subset(full_dataset, val_indices)
 
     # Prepare data loaders
-    train_loader = DataLoader(train_subset, batch_size=training_params["batch_size"], shuffle=True, drop_last=True, num_workers=NUM_WORKERS, persistent_workers=PERSISTENT_WORKERS)
+    train_loader = DataLoader(train_subset, batch_size=training_params["batch_size"], shuffle=True, drop_last=True, num_workers=num_workers, persistent_workers=persistent_workers)
     val_loader = DataLoader(val_subset, batch_size=training_params["batch_size"], shuffle=False)
 
     # Initialize the model and move it to the device
     start_time = time.time()
-    model = resnet_models.resnet20(num_classes=num_classes).to(device)
+    stu_model = initialize_model(student_type, num_classes, device, logger=logger)
 
     # Define loss and optimizer with the fixed parameters and searched lr
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(
-        model.parameters(),
+        stu_model.parameters(),
         lr=param['lr'],  # Use the learning rate from pyhopper search
         momentum=optimizer_params["momentum"],
         nesterov=optimizer_params["nesterov"],
         weight_decay=optimizer_params["weight_decay"]
     )
 
+    # ========================== SETUP OF KD CRITERION ==========================
+    # send logits to device
+    tea_logits = tea_logits.to(device)
+    vanilla_criterion = VanillaKDLoss(temperature=param['vanilla_temperature'], cached_teacher_logits=tea_logits)
+    alpha = param['alpha']
+    gamma = 1.0 - alpha
+
     # Scheduler (MultiStepLR)
     scheduler = optim.lr_scheduler.MultiStepLR(
         optimizer,
-        milestones=scheduler_params["milestones"],
+        milestones=scheduler_params.get("milestones", []),
         gamma=scheduler_params["gamma"]
     )
 
     # Training loop
     for epoch in range(training_params["max_epochs"]):
         logger(f"Fold {eval_index + 1}, Epoch {epoch + 1}")
-        model.train()
+        stu_model.train()
         train_loss = 0.0
+        vanilla_loss = 0.0
+        tot_loss = 0.0
         for batch_idx, (inputs, targets, indices) in enumerate(train_loader):
             if batch_idx % 150 == 0:
                 logger(f"Batch {batch_idx + 1}/{len(train_loader)}")
-            
+
             # Move inputs and targets to the device
             inputs, targets = inputs.to(device), targets.to(device)
             optimizer.zero_grad()
-            outputs = model(inputs)
+            outputs = stu_model(inputs)
             loss = criterion(outputs, targets)
             train_loss += loss.item()
+            vanilla_loss = vanilla_criterion(student_logits=outputs, teacher_logits=None, labels=None, features=None, indices=indices)
+            vanilla_loss += vanilla_loss.item()
+            loss = alpha * loss + gamma * vanilla_loss
+            tot_loss += loss.item()
             loss.backward()
             optimizer.step()
-        
-        logger.log_to_csv({'phase': 'train', 'loss': train_loss / len(train_loader), "accuracy": -1.0})
+
+        logger.log_to_csv({'phase': 'train', 'student_loss': train_loss / len(train_loader), "accuracy": -1.0, 'vanilla_loss': vanilla_loss, 'total_loss': tot_loss})
         # Step the scheduler after each epoch
         scheduler.step()
 
     # Validation step
-    model.eval()
+    stu_model.eval()
     val_loss = 0.0
     correct = 0
     total = 0
@@ -146,7 +139,7 @@ def kfold_objective(param, eval_index):
         for inputs, targets, indices in val_loader:
             # Move inputs and targets to the device
             inputs, targets = inputs.to(device), targets.to(device)
-            outputs = model(inputs)
+            outputs = stu_model(inputs)
             loss = criterion(outputs, targets)
             val_loss += loss.item()
             _, predicted = outputs.max(1)
@@ -156,39 +149,82 @@ def kfold_objective(param, eval_index):
     logger.log_to_csv({'phase': 'val', 'loss': val_loss / len(val_loader), "accuracy": correct / total})
     val_accuracy = 100. * correct / total
     logger(f"Fold {eval_index + 1}, Validation Accuracy: {val_accuracy:.2f}%")
-    
+
     # Record the validation accuracy to the shared list
     shared_accuracies.append(val_accuracy)
-    
+
     # Check if the current accuracy is in the lower P% of the results seen so far and prune if necessary
     if len(shared_accuracies) > 10 and eval_index != 0:  # Allow some evaluations before pruning
-        threshold = np.percentile(shared_accuracies[:-eval_index-1], PERCENTILE_PRUNE)
+        threshold = np.percentile(shared_accuracies[:-eval_index-1], percentile_prune)
         mean_config_accs = sum(shared_accuracies[-eval_index-1:]) / (eval_index + 1)
         if mean_config_accs < threshold:
-            logger(f"Pruning evaluation for Fold {eval_index + 1}, Avg. Acc of Cur Conf {mean_config_accs:.2f}% below {PERCENTILE_PRUNE}th percentile")
+            logger(f"Pruning evaluation for Fold {eval_index + 1}, Avg. Acc of Cur Conf {mean_config_accs:.2f}% below {percentile_prune}th percentile")
             raise pyhopper.PruneEvaluation()
 
     end_time = time.time()
     logger(f"Fold {eval_index + 1}, Time taken: {end_time - start_time:.2f} seconds")
     return val_accuracy
 
-# Main section to load dataset and perform K-fold splits once
-def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx'):
-    global folds, full_dataset, num_classes, device, shared_accuracies  # Use global variables
-    global NAME, FOLDS, RUNTIME
 
+def configure_teacher(teacher_type, num_classes, device, logger, teacher_path, trainloader, train_dataset):
+    teacher_model = initialize_model(teacher_type, num_classes, device, logger=logger)
+    teacher_model_handler = TeacherModelHandler(
+        teacher_model=teacher_model,
+        teacher_type=teacher_type,
+        teacher_file_name=teacher_path,
+        device=device,
+        num_classes=num_classes,
+        printer=logger,
+    )
+
+    teacher_model = teacher_model_handler.load_teacher_model()
+    if teacher_model is None:
+        exit(1)
+
+    logger("Teacher model loaded, generating logits and feature maps")
+    teacher_logits = None
+    teacher_layer_groups_preactivation_fmaps = None
+    teacher_layer_groups_post_activation_fmaps = None
+    teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps = \
+        teacher_model_handler.generate_and_save_teacher_logits_and_feature_maps(
+            trainloader, train_dataset, generate_logits=GENERATE_LOGITS, generate_feature_maps=GENERATE_FEATURE_MAPS
+        ) 
+    
+    del teacher_model_handler
+    logger("Teacher model loaded and feature maps generated")
+
+    return teacher_model, teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps
+
+
+# Main section to load dataset and perform K-fold splits once
+def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx', log_dir="hpar_tuning_logs/vanilla", 
+         name='no_name_provided', folds_num=5, pruning_percentile=80, num_workers=0, persistent_workers=False, 
+         student_type='resnet20', teacher_type='resnet56', teacher_path='xxx'):
     # Set the device based on the availability of CUDA
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-
+    
     # Get dataset info
     dataset_class, num_classes, transform_train, transform_test = get_dataset_info(dataset_name)
-    
+
     # Load the dataset (indexed dataset with transforms)
     full_dataset = dataset_class(root='./data', train=True, download=True, transform=transform_train)
-    
+
+    # Get a train loader for the full dataset
+    full_loader = DataLoader(full_dataset, batch_size=64, shuffle=False, drop_last=False, num_workers=0, persistent_workers=False)
+    teacher_model, teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps =\
+          configure_teacher(
+                teacher_type=teacher_type, 
+                num_classes=num_classes,
+                device=device, 
+                logger=print, 
+                teacher_path=teacher_path, 
+                trainloader=full_loader, 
+                train_dataset=full_dataset
+            )
+
     # Perform K-Fold splitting once
-    folds = prepare_kfold_splits(full_dataset, n_splits=FOLDS)
+    folds = prepare_kfold_splits(full_dataset, n_splits=folds_num)
 
     # Initialize a multiprocessing-safe list for storing accuracies
     with multiprocessing.Manager() as manager:
@@ -197,13 +233,35 @@ def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx'):
         # Define the parameter search space using pyhopper
         search: pyhopper.Search = pyhopper.Search(
             {
-                "lr": pyhopper.float(0.01, 0.2, log=True),  # Only search the learning rate
+                "lr": 0.11,
+                # "lr": pyhopper.float(0.01, 0.2, log=True, init=0.1),  # Only search the learning rate
+                "vanilla_temperature": pyhopper.float(0.1, 10.0, log=True, init=4.0),
+                "alpha": pyhopper.float(0.0, 1.0, init=0.8),
             }
         )
 
         # Run K-Fold cross-validation using pyhopper
         search.run(
-            pyhopper.wrap_n_times(kfold_objective, n=FOLDS, yield_after=0, pass_index_arg=True),
+            pyhopper.wrap_n_times(partial(
+                kfold_objective,
+                folds=folds,
+                full_dataset=full_dataset,
+                num_classes=num_classes,
+                device=device,
+                log_dir=log_dir,
+                dataset=dataset_name,
+                student_type=student_type,
+                logger_tag=name,
+                percentile_prune=pruning_percentile,
+                num_workers=num_workers,
+                persistent_workers=persistent_workers,
+                shared_accuracies=shared_accuracies,
+                teacher_type=teacher_type,
+                tea_model=teacher_model,
+                tea_logits=teacher_logits,
+                tea_preactivation_fmaps=teacher_layer_groups_preactivation_fmaps,
+                tea_postactivation_fmaps=teacher_layer_groups_post_activation_fmaps
+            ), n=folds_num, yield_after=0, pass_index_arg=True),
             runtime=runtime,  # Number of parameter search steps
             direction='maximize',  # Maximize the validation accuracy
             quiet=False,
@@ -212,7 +270,7 @@ def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx'):
         print(f"Best: {search.best_f}")
         print(search.best)
 
-        search.save(f"{LOG_DIR}/{NAME}_{dataset_name}.ckpt")
+        search.save(f"{log_dir}/{name}_{dataset_name}.ckpt")
         search_results = {
             'fs': list(search.history.fs),
             'steps': list(search.history.steps),
@@ -224,9 +282,8 @@ def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx'):
 
         import json
 
-        with open(f"{LOG_DIR}/{NAME}_{dataset_name}_results.json", "w") as f:
+        with open(f"{log_dir}/{name}_{dataset_name}_results.json", "w") as f:
             json.dump(search_results, f, indent=2)
-
 
 # Example of running the main function
 if __name__ == "__main__":
@@ -244,11 +301,17 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    NAME = args.name
-    DATASET = args.dataset
-    PERCENTILE_PRUNE = args.pruning_percentile
-    FOLDS = args.folds
-    NUM_WORKERS = args.num_workers
-    PERSISTENT_WORKERS = args.persistent_workers
-
-    main(dataset_name=DATASET, requested_device=args.device, runtime=args.runtime)  # Change this to "CIFAR100" if needed
+    main(
+        dataset_name=args.dataset,
+        requested_device=args.device,
+        runtime=args.runtime,
+        log_dir="hpar_tuning_logs/vanilla",
+        name=args.name,
+        folds_num=args.folds,
+        pruning_percentile=args.pruning_percentile,
+        num_workers=args.num_workers,
+        persistent_workers=args.persistent_workers,
+        student_type='resnet20',
+        teacher_type='resnet56',
+        teacher_path='resnet56_cifar100_73p18.pth',
+    )

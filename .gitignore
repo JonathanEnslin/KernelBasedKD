@@ -15,6 +15,7 @@
 /fat_initial_runs
 /kd_debug
 /kd_exp_runs
+/hpar_tuning_logs
 
 # Temporarily ignoring the AT folder
 /AT
