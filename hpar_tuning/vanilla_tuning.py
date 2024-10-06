@@ -22,6 +22,7 @@ from utils.model_utils import initialize_model
 from loss_functions.vanilla import VanillaKDLoss
 
 from mock_args import Args as MockArgs
+from pruner import prune_if_underperforming
 
 
 GENERATE_LOGITS = True
@@ -51,9 +52,9 @@ def prepare_kfold_splits(dataset, n_splits=5):
 
 # Noisy objective function for K-Folds (Only takes param and eval_index)
 def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device, log_dir, 
-                    dataset, student_type, logger_tag, percentile_prune, num_workers, 
+                    dataset, student_type, logger_tag, percentile_prune1, num_workers, 
                     persistent_workers, shared_accuracies, teacher_type, tea_model, 
-                    tea_logits, tea_preactivation_fmaps, tea_postactivation_fmaps):
+                    tea_logits, tea_preactivation_fmaps, tea_postactivation_fmaps, percentile_prune2=40):
     import time
 
     args = MockArgs()
@@ -161,15 +162,7 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
     # Record the validation accuracy to the shared list
     shared_accuracies.append(val_accuracy)
 
-    # Check if the current accuracy is in the lower P% of the results seen so far and prune if necessary
-    if len(shared_accuracies) > 10 and eval_index != 0:  # Allow some evaluations before pruning
-        threshold = np.percentile(shared_accuracies[:-eval_index-1], percentile_prune)
-        mean_config_accs = sum(shared_accuracies[-eval_index-1:]) / (eval_index + 1)
-        if mean_config_accs < threshold:
-            logger(f"Pruning evaluation for Fold {eval_index + 1}, Avg. Acc of Cur Conf {mean_config_accs:.2f}% below {percentile_prune}th percentile of {threshold}")
-            # append folds - eval_index - 1 to the shared_accuracies list to keep the length consistent and skewed results because of pruning
-            shared_accuracies.extend([mean_config_accs] * (len(folds) - eval_index - 1))
-            raise pyhopper.PruneEvaluation()
+    prune_if_underperforming(shared_accuracies, eval_index, folds, logger, percentile_prune1, percentile_prune2)
 
     end_time = time.time()
     logger(f"Fold {eval_index + 1}, Time taken: {end_time - start_time:.2f} seconds")
@@ -208,7 +201,7 @@ def configure_teacher(teacher_type, num_classes, device, logger, teacher_path, t
 
 # Main section to load dataset and perform K-fold splits once
 def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx', log_dir="hpar_tuning_logs/vanilla", 
-         name='no_name_provided', folds_num=5, pruning_percentile=80, num_workers=0, persistent_workers=False, 
+         name='no_name_provided', folds_num=5, pruning_percentile1=80, pruning_percentile2=40, num_workers=0, persistent_workers=False, 
          student_type='resnet20', teacher_type='resnet56', teacher_path='xxx'):
     # Set the device based on the availability of CUDA
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
@@ -262,7 +255,8 @@ def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx', log_dir
                 dataset=dataset_name,
                 student_type=student_type,
                 logger_tag=name,
-                percentile_prune=pruning_percentile,
+                percentile_prune1=pruning_percentile1,
+                percentile_prune2=pruning_percentile2,
                 num_workers=num_workers,
                 persistent_workers=persistent_workers,
                 shared_accuracies=shared_accuracies,
@@ -303,6 +297,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, choices=['CIFAR10', 'CIFAR100'], required=True, help='Dataset to use')
     parser.add_argument('--name', type=str, required=True, help='Name of the hyperparameter tuning run')
     parser.add_argument('--pruning-percentile', type=int, default=80, help='Pruning percentile for early stopping')
+    parser.add_argument('--pruning-percentile2', type=int, default=40, help='Pruning percentile for early stopping')
     parser.add_argument('--runtime', type=str, required=True, help='Runtime for the hyperparameter tuning run')
     parser.add_argument('--device', type=str, default='cuda', help='Device to use for training')
     parser.add_argument('--num-workers', type=int, default=0, help='Number of workers for the DataLoader')
@@ -318,7 +313,8 @@ if __name__ == "__main__":
         log_dir="hpar_tuning_logs/vanilla",
         name=args.name,
         folds_num=args.folds,
-        pruning_percentile=args.pruning_percentile,
+        pruning_percentile1=args.pruning_percentile,
+        pruning_percentile2=args.pruning_percentile2,
         num_workers=args.num_workers,
         persistent_workers=args.persistent_workers,
         student_type='resnet20',
