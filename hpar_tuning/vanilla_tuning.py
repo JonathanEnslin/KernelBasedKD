@@ -122,7 +122,7 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
             tracked_train_loss += loss.item()
             vanilla_loss = vanilla_criterion(student_logits=outputs, teacher_logits=None, labels=None, features=None, indices=indices)
             tracked_vanilla_loss += vanilla_loss.item()
-            loss = alpha * loss + gamma * vanilla_loss
+            loss = gamma * loss + alpha * vanilla_loss
             tracked_tot_loss += loss.item()
             loss.backward()
             optimizer.step()
@@ -166,7 +166,9 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
         threshold = np.percentile(shared_accuracies[:-eval_index-1], percentile_prune)
         mean_config_accs = sum(shared_accuracies[-eval_index-1:]) / (eval_index + 1)
         if mean_config_accs < threshold:
-            logger(f"Pruning evaluation for Fold {eval_index + 1}, Avg. Acc of Cur Conf {mean_config_accs:.2f}% below {percentile_prune}th percentile")
+            logger(f"Pruning evaluation for Fold {eval_index + 1}, Avg. Acc of Cur Conf {mean_config_accs:.2f}% below {percentile_prune}th percentile of {threshold}")
+            # append folds - eval_index - 1 to the shared_accuracies list to keep the length consistent and skewed results because of pruning
+            shared_accuracies.extend([mean_config_accs] * (len(folds) - eval_index - 1))
             raise pyhopper.PruneEvaluation()
 
     end_time = time.time()

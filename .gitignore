@@ -16,6 +16,7 @@
 /kd_debug
 /kd_exp_runs
 /hpar_tuning_logs
+handy_commands.txt
 
 # Temporarily ignoring the AT folder
 /AT
