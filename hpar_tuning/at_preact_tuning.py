@@ -96,7 +96,10 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
     # ========================== SETUP OF KD CRITERION ==========================
     # send logits to device
     if tea_logits is not None:
-        tea_logits = tea_logits.to(device)
+        if isinstance(tea_logits, list):
+            tea_logits = [logits.to(device) for logits in tea_logits]
+        else:
+            tea_logits = tea_logits.to(device)
     vanilla_criterion = VanillaKDLoss(temperature=param['vanilla_temperature'], cached_teacher_logits=tea_logits)
     kd_criterion = ATLoss(student=stu_model, 
                           teacher=tea_model, 
