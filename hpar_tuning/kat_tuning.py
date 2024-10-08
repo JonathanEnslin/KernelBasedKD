@@ -20,6 +20,8 @@ from utils.logger import Logger
 from utils.teacher.teacher_model_handler import TeacherModelHandler
 from utils.model_utils import initialize_model
 from loss_functions.vanilla import VanillaKDLoss
+from loss_functions.attention_transfer import ATLoss
+from loss_functions.filter_at import FilterAttentionTransfer
 
 from mock_args import Args as MockArgs
 from pruner import prune_if_underperforming
@@ -79,6 +81,8 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
     # Initialize the model and move it to the device
     start_time = time.time()
     stu_model = initialize_model(student_type, num_classes, device, logger=logger)
+    stu_model.to(device)
+    stu_model.set_hook_device_state('same')
 
     # Define loss and optimizer with the fixed parameters and searched lr
     criterion = nn.CrossEntropyLoss()
@@ -98,8 +102,18 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
         else:
             tea_logits = tea_logits.to(device)
     vanilla_criterion = VanillaKDLoss(temperature=param['vanilla_temperature'], cached_teacher_logits=tea_logits)
+    kd_criterion = FilterAttentionTransfer(
+        student=stu_model,
+        teacher=tea_model,
+        map_p=2,
+        loss_p=2,
+        mean_targets=param['mean_targets'],
+        use_abs=param['use_abs'],
+        layer_groups='final'
+    )
     alpha = param['alpha']
     gamma = 1.0 - alpha
+    beta = param['beta']
 
     # Scheduler (MultiStepLR)
     scheduler = optim.lr_scheduler.MultiStepLR(
@@ -112,8 +126,10 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
     for epoch in range(training_params["max_epochs"]):
         logger(f"Fold {eval_index + 1}, Epoch {epoch + 1}")
         stu_model.train()
+        tea_model.eval()
         tracked_train_loss = 0.0
         tracked_vanilla_loss = 0.0
+        tracked_kd_loss = 0.0
         tracked_tot_loss = 0.0
         for batch_idx, (inputs, targets, indices) in enumerate(train_loader):
             if batch_idx % 150 == 0:
@@ -121,13 +137,21 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
 
             # Move inputs and targets to the device
             inputs, targets = inputs.to(device), targets.to(device)
+            tea_logits = None
+            if kd_criterion.run_teacher() or vanilla_criterion.run_teacher():
+                with torch.no_grad():
+                    tea_model.eval()
+                    tea_logits = tea_model(inputs)
+
             optimizer.zero_grad()
             outputs = stu_model(inputs)
             loss = criterion(outputs, targets)
             tracked_train_loss += loss.item()
-            vanilla_loss = vanilla_criterion(student_logits=outputs, teacher_logits=None, labels=None, features=None, indices=indices)
+            vanilla_loss = vanilla_criterion(student_logits=outputs, teacher_logits=tea_logits, labels=targets, features=inputs, indices=indices)
+            kd_loss = kd_criterion(student_logits=outputs, teacher_logits=tea_logits, labels=targets, features=inputs, indices=indices)
+            tracked_kd_loss += kd_loss.item()
             tracked_vanilla_loss += vanilla_loss.item()
-            loss = gamma * loss + alpha * vanilla_loss
+            loss = gamma * loss + alpha * vanilla_loss + beta * kd_loss
             tracked_tot_loss += loss.item()
             loss.backward()
             optimizer.step()
@@ -137,6 +161,7 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
                            'student_loss': tracked_train_loss / len(train_loader), 
                            'accuracy': -1.0, 
                            'vanilla_loss': tracked_vanilla_loss / len(train_loader), 
+                           'kd_loss': tracked_kd_loss / len(train_loader),
                            'total_loss': tracked_tot_loss / len(train_loader),
                            'time': time.time(),
                            })
@@ -173,7 +198,7 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
     return val_accuracy
 
 
-def configure_teacher(teacher_type, num_classes, device, logger, teacher_path, trainloader, train_dataset):
+def configure_teacher(teacher_type, num_classes, device, logger, teacher_path, trainloader, train_dataset, use_cached_values=False):
     teacher_model = initialize_model(teacher_type, num_classes, device, logger=logger)
     teacher_model_handler = TeacherModelHandler(
         teacher_model=teacher_model,
@@ -185,20 +210,30 @@ def configure_teacher(teacher_type, num_classes, device, logger, teacher_path, t
     )
 
     teacher_model = teacher_model_handler.load_teacher_model()
+    teacher_model.to(device)
+    teacher_model.set_hook_device_state('same')
     if teacher_model is None:
         exit(1)
 
-    logger("Teacher model loaded, generating logits and feature maps")
+    logger("Teacher model loaded, generating logits and feature maps if specified")
     teacher_logits = None
     teacher_layer_groups_preactivation_fmaps = None
     teacher_layer_groups_post_activation_fmaps = None
     teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps = \
         teacher_model_handler.generate_and_save_teacher_logits_and_feature_maps(
-            trainloader, train_dataset, generate_logits=GENERATE_LOGITS, generate_feature_maps=GENERATE_FEATURE_MAPS
+            trainloader, train_dataset, 
+            generate_logits=GENERATE_LOGITS and use_cached_values, 
+            generate_feature_maps=GENERATE_FEATURE_MAPS and use_cached_values
         ) 
     
     del teacher_model_handler
-    logger("Teacher model loaded and feature maps generated")
+    if not use_cached_values:
+        teacher_logits = None
+        teacher_layer_groups_preactivation_fmaps = None
+        teacher_layer_groups_post_activation_fmaps = None
+        logger("Teacher model loaded")
+    else:
+        logger("Teacher model loaded and feature maps generated")
 
     return teacher_model, teacher_logits, teacher_layer_groups_preactivation_fmaps, teacher_layer_groups_post_activation_fmaps
 
@@ -206,7 +241,7 @@ def configure_teacher(teacher_type, num_classes, device, logger, teacher_path, t
 # Main section to load dataset and perform K-fold splits once
 def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx', log_dir="hpar_tuning_logs/vanilla", 
          name='no_name_provided', folds_num=5, pruning_percentile1=80, pruning_percentile2=40, num_workers=0, persistent_workers=False, 
-         student_type='resnet20', teacher_type='resnet56', teacher_path='xxx'):
+         student_type='resnet20', teacher_type='resnet56', teacher_path='xxx', use_cached_values=False, disable_vanilla=False):
     # Set the device based on the availability of CUDA
     device = torch.device(requested_device if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -227,7 +262,8 @@ def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx', log_dir
                 logger=print, 
                 teacher_path=teacher_path, 
                 trainloader=full_loader, 
-                train_dataset=full_dataset
+                train_dataset=full_dataset,
+                use_cached_values=use_cached_values
             )
 
     # Perform K-Fold splitting once
@@ -242,8 +278,13 @@ def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx', log_dir
             {
                 "lr": 0.11,
                 # "lr": pyhopper.float(0.01, 0.2, log=True, init=0.1),  # Only search the learning rate
-                "vanilla_temperature": pyhopper.float(0.1, 10.0, log=True, init=4.0),
-                "alpha": pyhopper.float(0.0, 1.0, init=0.8),
+                # "vanilla_temperature": 10.0,
+                "vanilla_temperature": pyhopper.float(4.0, 10.0, log=False, init=5.0) if not disable_vanilla else 10.0,
+                # "alpha": 0.0,
+                "alpha": pyhopper.float(0.4, 1.0, init=0.8) if not disable_vanilla else 0.0,
+                "beta": pyhopper.float(0.0, 10000.0, log=True),
+                "mean_targets": pyhopper.choice([['C_out', 'C_in'], ['C_out'], ['C_in'], []], init_index=0),
+                "use_abs": pyhopper.choice([True, False], init_index=0),
             }
         )
 
@@ -306,7 +347,9 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=str, default='cuda', help='Device to use for training')
     parser.add_argument('--num-workers', type=int, default=0, help='Number of workers for the DataLoader')
     parser.add_argument('--persistent-workers', action='store_true', help='Use persistent workers for DataLoader')
-    parser.add_argument('--folds', type=int, default=5, help='Number of folds for K-Fold cross-validation')    
+    parser.add_argument('--folds', type=int, default=5, help='Number of folds for K-Fold cross-validation')
+    parser.add_argument('--use_cached_values', action='store_true', help='Use cached logits and feature maps')
+    parser.add_argument('--disable-vanilla')
 
     args = parser.parse_args()
 
@@ -314,7 +357,7 @@ if __name__ == "__main__":
         dataset_name=args.dataset,
         requested_device=args.device,
         runtime=args.runtime,
-        log_dir="hpar_tuning_logs/vanilla",
+        log_dir="hpar_tuning_logs/kattention",
         name=args.name,
         folds_num=args.folds,
         pruning_percentile1=args.pruning_percentile,
@@ -324,4 +367,5 @@ if __name__ == "__main__":
         student_type='resnet20',
         teacher_type='resnet56',
         teacher_path='resnet56_cifar100_73p18.pth',
+        use_cached_values=args.use_cached_values,
     )

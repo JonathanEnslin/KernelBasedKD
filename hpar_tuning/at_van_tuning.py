@@ -96,7 +96,10 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
     # ========================== SETUP OF KD CRITERION ==========================
     # send logits to device
     if tea_logits is not None:
-        tea_logits = tea_logits.to(device)
+        if isinstance(tea_logits, list):
+            tea_logits = [logits.to(device) for logits in tea_logits]
+        else:
+            tea_logits = tea_logits.to(device)
     vanilla_criterion = VanillaKDLoss(temperature=param['vanilla_temperature'], cached_teacher_logits=tea_logits)
     kd_criterion = ATLoss(student=stu_model, 
                           teacher=tea_model, 
@@ -273,10 +276,10 @@ def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx', log_dir
                 "lr": 0.11,
                 # "lr": pyhopper.float(0.01, 0.2, log=True, init=0.1),  # Only search the learning rate
                 # "vanilla_temperature": 10.0,
-                "vanilla_temperature": pyhopper.float(4.0, 10.0, log=True, init=4.0),
+                "vanilla_temperature": pyhopper.float(4.0, 10.0, log=False, init=4.0),
                 # "alpha": 0.0,
-                "alpha": pyhopper.float(0.0, 1.0, init=0.8),
-                "beta": pyhopper.float(0.0, 4000.0, init=1400.0),
+                "alpha": pyhopper.float(0.4, 1.0, init=0.8),
+                "beta": pyhopper.float(900.0, 2000.0, init=1100.0),
             }
         )
 
