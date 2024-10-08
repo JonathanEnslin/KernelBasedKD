@@ -52,6 +52,20 @@ def prepare_kfold_splits(dataset, n_splits=5):
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=112)  # Added a fixed random_state for reproducibility
     return list(kf.split(dataset))  # Returns a list of (train_indices, val_indices) tuples
 
+def manual_wrap_n_times(func, n, yield_after=0, pass_index_arg=False):
+    def wrapped_func(*args, **kwargs):
+        collected_vals = []
+        for i in range(n):
+            try:
+                obj_value = func(*args, **kwargs, eval_index=i if pass_index_arg else None)
+                collected_vals.append(obj_value)
+            except pyhopper.PruneEvaluation as ppe:
+                if len(collected_vals) == 0:
+                    raise ppe
+                break
+        return sum(collected_vals) / len(collected_vals)
+    return wrapped_func
+
 # Noisy objective function for K-Folds (Only takes param and eval_index)
 def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device, log_dir, 
                     dataset, student_type, logger_tag, percentile_prune1, num_workers, 
@@ -105,8 +119,8 @@ def kfold_objective(param, eval_index, folds, full_dataset, num_classes, device,
     kd_criterion = FilterAttentionTransfer(
         student=stu_model,
         teacher=tea_model,
-        map_p=2,
-        loss_p=2,
+        map_p=param["map_p"],
+        loss_p=2.0,
         mean_targets=param['mean_targets'],
         use_abs=param['use_abs'],
         layer_groups='final'
@@ -282,15 +296,16 @@ def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx', log_dir
                 "vanilla_temperature": pyhopper.float(4.0, 10.0, log=False, init=5.0) if not disable_vanilla else 10.0,
                 # "alpha": 0.0,
                 "alpha": pyhopper.float(0.4, 1.0, init=0.8) if not disable_vanilla else 0.0,
-                "beta": pyhopper.float(0.0, 10000.0, log=True),
+                "beta": pyhopper.float(0.0, 8000.0),
                 "mean_targets": pyhopper.choice([['C_out', 'C_in'], ['C_out'], ['C_in'], []], init_index=0),
                 "use_abs": pyhopper.choice([True, False], init_index=0),
+                "map_p": pyhopper.float(0.5, 4.0, init=2.0),
             }
         )
 
         # Run K-Fold cross-validation using pyhopper
         search.run(
-            pyhopper.wrap_n_times(partial(
+            manual_wrap_n_times(partial(
                 kfold_objective,
                 folds=folds,
                 full_dataset=full_dataset,
@@ -349,7 +364,7 @@ if __name__ == "__main__":
     parser.add_argument('--persistent-workers', action='store_true', help='Use persistent workers for DataLoader')
     parser.add_argument('--folds', type=int, default=5, help='Number of folds for K-Fold cross-validation')
     parser.add_argument('--use_cached_values', action='store_true', help='Use cached logits and feature maps')
-    parser.add_argument('--disable-vanilla')
+    parser.add_argument('--disable-vanilla', action='store_true', help='Disable vanilla KD loss')
 
     args = parser.parse_args()
 
@@ -368,4 +383,5 @@ if __name__ == "__main__":
         teacher_type='resnet56',
         teacher_path='resnet56_cifar100_73p18.pth',
         use_cached_values=args.use_cached_values,
+        disable_vanilla=args.disable_vanilla,
     )
