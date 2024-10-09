@@ -137,6 +137,48 @@
         "use_abs": false,
         "layer_groups": "all"
       }
+    },
+    "AT_Tuned": {
+      "notes": {
+        "description": "Attention transfer setup using post activations and hyperparameters obtained through hyperparameter tuning.\nThe configuration still specified the vanila temp for compatibility, but the alpha weight factor is set to 0."
+      },
+      "distillation_type": "at",
+      "gamma": 1.0,
+      "alpha": 0.0,
+      "beta": 1401.9,
+      "vanilla_temperature": 4.0,
+      "params": {
+        "mode": "impl",
+        "use_post_activation": true
+      }
+    },
+    "AT+Vanilla_Tuned": {
+      "notes": {
+        "description": "Attention transfer using post activations combined with Vanilla KD and hyperparameters obtained through hyperparameter tuning."
+      },
+      "distillation_type": "at",
+      "gamma": 0.1568,
+      "alpha": 0.8432,
+      "beta": 1102.0,
+      "vanilla_temperature": 4.0,
+      "params": {
+        "mode": "impl",
+        "use_post_activation": true
+      }
+    },
+    "Vanilla_Tuned": {
+      "notes": {
+        "description": "Attention transfer using post activations combined with Vanilla KD and hyperparameters obtained through hyperparameter tuning."
+      },
+      "distillation_type": "at",
+      "gamma": 0.1568,
+      "alpha": 0.8432,
+      "beta": 1102.0,
+      "vanilla_temperature": 4.0,
+      "params": {
+        "mode": "impl",
+        "use_post_activation": true
+      }
     }
 }
   
