@@ -275,10 +275,10 @@ def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx', log_dir
             {
                 "lr": 0.11,
                 # "lr": pyhopper.float(0.01, 0.2, log=True, init=0.1),  # Only search the learning rate
-                "vanilla_temperature": 10.0,
-                # "vanilla_temperature": pyhopper.float(0.1, 10.0, log=True, init=4.0),
-                "alpha": 0.0,
-                # "alpha": pyhopper.float(0.0, 1.0, init=0.8),
+                # "vanilla_temperature": 10.0,
+                "vanilla_temperature": pyhopper.float(4.0, 10.0, log=True, init=4.0),
+                # "alpha": 0.0,
+                "alpha": pyhopper.float(0.4, 1.0, init=0.8),
                 "beta": pyhopper.float(0.0, 4000.0, init=1000.0) if use_starting_points else pyhopper.float(0.0, 4000.0),
             }
         )
