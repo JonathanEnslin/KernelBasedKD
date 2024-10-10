@@ -157,9 +157,9 @@
         "description": "Attention transfer using post activations combined with Vanilla KD and hyperparameters obtained through hyperparameter tuning."
       },
       "distillation_type": "at",
-      "gamma": 0.1568,
-      "alpha": 0.8432,
-      "beta": 1102.0,
+      "gamma": 0.15,
+      "alpha": 0.85,
+      "beta": 1100.0,
       "vanilla_temperature": 4.0,
       "params": {
         "mode": "impl",
@@ -171,10 +171,10 @@
         "description": "Attention transfer using post activations combined with Vanilla KD and hyperparameters obtained through hyperparameter tuning."
       },
       "distillation_type": "at",
-      "gamma": 0.1568,
-      "alpha": 0.8432,
-      "beta": 1102.0,
-      "vanilla_temperature": 4.0,
+      "gamma": 0.2,
+      "alpha": 0.80,
+      "beta": 900.0,
+      "vanilla_temperature": 5.8,
       "params": {
         "mode": "impl",
         "use_post_activation": true
