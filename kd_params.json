@@ -140,7 +140,7 @@
     },
     "AT_Tuned": {
       "notes": {
-        "description": "Attention transfer setup using post activations and hyperparameters obtained through hyperparameter tuning.\nThe configuration still specified the vanila temp for compatibility, but the alpha weight factor is set to 0."
+        "description": "Attention transfer setup using post activations and hyperparameters obtained through hyperparameter tuning.\nThe configuration still specified the vanila temp for compatibility, but the alpha weight factor is set to 0.\n. Tuned on CIFAR100 with Resnet20 as student and Resnet56 as teacher."
       },
       "distillation_type": "at",
       "gamma": 1.0,
@@ -154,21 +154,7 @@
     },
     "AT+Vanilla_Tuned": {
       "notes": {
-        "description": "Attention transfer using post activations combined with Vanilla KD and hyperparameters obtained through hyperparameter tuning."
-      },
-      "distillation_type": "at",
-      "gamma": 0.15,
-      "alpha": 0.85,
-      "beta": 1100.0,
-      "vanilla_temperature": 4.0,
-      "params": {
-        "mode": "impl",
-        "use_post_activation": true
-      }
-    },
-    "Vanilla_Tuned": {
-      "notes": {
-        "description": "Attention transfer using post activations combined with Vanilla KD and hyperparameters obtained through hyperparameter tuning."
+        "description": "Attention transfer using post activations combined with Vanilla KD and hyperparameters obtained through hyperparameter tuning. Tuned on CIFAR100 with Resnet20 as student and Resnet56 as teacher."
       },
       "distillation_type": "at",
       "gamma": 0.2,
@@ -179,6 +165,14 @@
         "mode": "impl",
         "use_post_activation": true
       }
+    },
+    "Vanilla_Tuned": {
+      "notes": {
+        "description": "Vanilla KD with tuned hyperparameters. Tuned on CIFAR100 with Resnet20 as student and Resnet56 as teacher."
+      },
+      "gamma": 0.34,
+      "alpha": 0.66,
+      "vanilla_temperature": 10.0
     }
 }
   
