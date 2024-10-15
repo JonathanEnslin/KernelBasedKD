@@ -74,8 +74,8 @@ class ATLoss(BaseLoss):
         self.cached_teacher_maps = None
         self.beta = 1.0
 
-        pre_activation_methods = ['paper', 'paper_strict']
-        post_activation_methods = ['zoo', 'impl']
+        pre_activation_methods = ['impl', 'paper', 'paper_strict']
+        post_activation_methods = ['zoo']
 
         # Organize the feature map getters
         if mode in pre_activation_methods:

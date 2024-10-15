@@ -14,6 +14,13 @@ import json  # For saving metrics to a JSON file
 from models.resnet import resnet20, resnet56
 from models.FT.encoders import Paraphraser, Translator
 
+def save_model_weights(model, title):
+    # Get all kernel weights, detached from the computation graph
+    weights = model.get_all_kernel_weights(detached=True)
+    # Convert to numpy arrays
+    weights_np = [w.cpu().numpy() for w in weights]
+    # Save to an npz file
+    np.savez(rf'e:\DLModels\kft\model_weights\{title}.npz', *weights_np)
 
 if __name__ == '__main__':
     # Hyperparameters

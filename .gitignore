@@ -17,6 +17,11 @@
 /kd_exp_runs
 /hpar_tuning_logs
 handy_commands.txt
+/conf_runs
+/training_logs
+ono.bat
+ono2.bat
+/debug_runs
 
 # Temporarily ignoring the AT folder
 /AT
