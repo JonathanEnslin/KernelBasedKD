@@ -56,14 +56,14 @@ def format_loss(loss):
     return f"{loss:.3f}" if (loss > 0.01 or loss == 0.0) else f"{loss:.3e}"
 
 class TrainStep:
-    def __init__(self, model, trainloader, optimizer, scaler, schedulers, device, writer, start_time, autocast, loss_handler=None, logger=print):
+    def __init__(self, model, trainloader, optimizers, scaler, schedulers, device, writer, start_time, autocast, loss_handler=None, logger=print):
         self.loss_handler = loss_handler
         if self.loss_handler is None:
             self.is_kd = False
             self.loss_handler = LossHandler(1, 0, 0, torch.nn.CrossEntropyLoss(), DummyCriterion(), None, DummyCriterion(), False)
         self.model = model
         self.trainloader = trainloader
-        self.optimizer = optimizer
+        self.optimizers: list = optimizers
         self.scaler = scaler
         self.schedulers = schedulers
         self.device = device
@@ -91,7 +91,9 @@ class TrainStep:
             inputs, labels = inputs.to(self.device), labels.to(self.device)
             total_samples += labels.size(0)
             
-            self.optimizer.zero_grad()
+            # Zero the parameter gradients
+            for optimizer in self.optimizers:
+                optimizer.zero_grad()
 
             teacher_logits = None
             if self.loss_handler.run_teacher():
@@ -120,7 +122,9 @@ class TrainStep:
                 #     self.model.train()
 
             self.scaler.scale(loss).backward()
-            self.scaler.step(self.optimizer)
+            # Step the optimizers
+            for optimizer in self.optimizers:
+                self.scaler.step(optimizer)
             self.scaler.update()
 
             self.loss_handler.batch_step(batch_idx=i)

@@ -5,6 +5,8 @@ from loss_functions.filter_at import FilterAttentionTransfer
 from loss_functions.vanilla import VanillaKDLoss
 from loss_functions.attention_transfer import ATLoss
 from loss_functions.filter_magnitude import FilterAnalysis
+from loss_functions.factor_transfer import FTLoss
+from loss_functions.filter_factor import KFTLoss
 from utils.logger import Logger
 import inspect
 
@@ -28,8 +30,16 @@ def get_distillation_params(params_file: str, param_set: str, logger=Logger, bas
 loss_function_map = {
     "vanilla": VanillaKDLoss,
     "at": ATLoss,
+    "attention_transfer": ATLoss,
+    "attention": ATLoss,
     "filter_at": FilterAttentionTransfer,
-    "Analysis": FilterAnalysis
+    "kat": FilterAttentionTransfer,
+    "Analysis": FilterAnalysis,
+    "ft": FTLoss,
+    "factor_transfer": FTLoss,
+    "factor": FTLoss,
+    "kft": KFTLoss,
+    "filter_ft": KFTLoss,
 }
 
 def get_kd_method(distillation_params_dict, logger: Logger):

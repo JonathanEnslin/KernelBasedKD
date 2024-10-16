@@ -204,6 +204,84 @@
       "mean_targets": ["C_in"],
       "use_abs": true
     }
+  },
+  "FT_b_1000": {
+    "notes": {
+      "description": "Factor transfer using the defaults from the paper"
+    },
+    "distillation_type": "ft",
+    "gamma": 1.0,
+    "beta": 1000.0,
+    "alpha": 0.0,
+    "k": 0.5,
+    "use_bn": false,
+    "params": {
+      "p": 1.0,
+      "optimizer": {
+        "lr": 0.1,
+        "momentum": 0.9,
+        "weight_decay": 5e-4
+      }
+    }
+  },
+  "FT+Vanilla": {
+    "notes": {
+      "description": "Factor transfer combined with vanilla training"
+    },
+    "distillation_type": "ft",
+    "gamma": 0.2,
+    "beta": 1000.0,
+    "alpha": 0.8,
+    "vanilla_temperature": 4.0,
+    "k": 0.5,
+    "use_bn": false,
+    "params": {
+      "p": 1.0,
+      "optimizer": {
+        "lr": 0.1,
+        "momentum": 0.9,
+        "weight_decay": 5e-4
+      }
+    }
+  },
+  "FT_Tuned": {
+    "notes": {
+      "description": "Factor transfer with tuned hyperparameters"
+    },
+    "distillation_type": "ft",
+    "gamma": 1.0,
+    "beta": 2560.0,
+    "alpha": 0.0,
+    "k": 0.5,
+    "use_bn": false,
+    "params": {
+      "p": 2.0,
+      "optimizer": {
+        "lr": 0.102,
+        "momentum": 0.9117,
+        "weight_decay": 5e-4
+      }
+    }
+  },
+  "FT+Vanilla_Tuned": {
+    "notes": {
+      "description": "Factor transfer with tuned hyperparameters"
+    },
+    "distillation_type": "ft",
+    "gamma": 0.2,
+    "beta": 2560.0,
+    "alpha": 0.8,
+    "vanilla_temperature": 8.478,
+    "k": 0.5,
+    "use_bn": false,
+    "params": {
+      "p": 2.0,
+      "optimizer": {
+        "lr": 0.1649,
+        "momentum": 0.9224,
+        "weight_decay": 5e-4
+      }
+    }
   }
 }
   

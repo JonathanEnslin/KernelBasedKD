@@ -116,6 +116,7 @@ if __name__ == '__main__':
     # Initialise the translator
     translator = Translator(student.get_post_activation_fmaps()[-1].shape, teacher.get_post_activation_fmaps()[-1].shape, k=ft_k, use_bn=ft_use_bn).to(device)
     translator.set_hook_device_state('same')
+    translator.train()
 
     # Optimizer for student
     optimizer_student = optim.SGD(student.parameters(), **hparams['optimizer']['parameters'])
@@ -226,9 +227,9 @@ if __name__ == '__main__':
     # Training loop
     for epoch in range(hparams['training']['max_epochs']):
         teacher.eval()
-        paraphraser.eval()
+        # paraphraser.eval()
         student.train()
-        translator.train()
+        # translator.train()
 
         running_loss_student = 0.0
         running_kd_loss = 0.0

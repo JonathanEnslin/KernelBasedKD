@@ -40,6 +40,8 @@ def get_arg_parser():
     parser.add_argument('--use_cached_feature_maps', action='store_true')
     parser.add_argument('--batch_stepper', type=str, help='Batch stepping function to use')
     parser.add_argument('--batch_stepper_args', type=str, help='Arguments for the batch stepping function')
+    # ------==================== FACTOR (and kFT) RELATED ARGS ====================
+    parser.add_argument('--paraphraser_path', type=str, help='Path to the paraphraser model')
     return parser
 
 class Config:

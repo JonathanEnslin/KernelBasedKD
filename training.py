@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
+import torch.optim as optim
 import os
 from datetime import datetime
 import numpy as np
@@ -29,6 +30,7 @@ from utils.logger import Logger
 from utils.distillation.distillation_config import *
 import steppers.steppers as steppers
 import utils
+from models.FT.encoders import Paraphraser, Translator
 
 import args as program_args
 
@@ -117,6 +119,8 @@ def main(args):
     trainloader, valloader, testloader, val_split_random_state \
             = config_utils.get_data_loaders(args, params, train_dataset, run_name, transform_train, transform_test, dataset_class, logger=logger)
 
+    optimizers = []
+
     # Initialize the nn model
     model = initialize_model(args.model_name, num_classes=num_classes, device=device)
     if model is None:
@@ -159,25 +163,66 @@ def main(args):
         gamma = distillation_params.get("gamma", gamma)
         alpha = distillation_params.get("alpha", alpha)
         beta = distillation_params.get("beta", beta)
+        distillation_type = None
         if "distillation_type" in distillation_params:
+            distillation_type = distillation_params["distillation_type"]
             if "beta" not in distillation_params:
                 logger("Warning: a distillation function was specified in the kd params, but no beta was provided", col='yellow')
+            
+            paraphraser = None
+            translator = None
+            if distillation_type == "ft" or distillation_type == 'kft' or distillation_type == 'filter_ft':
+                paraphraser_rate = distillation_params['k']
+                paraphraser_use_bn = distillation_params['use_bn']
+                # check if a paraphraser path is provided
+                if args.paraphraser_path is None:
+                    logger("Error: a paraphraser path must be provided when using factor transfer", col='red')
+                    exit(1)
+                paraphrser_path = args.paraphraser_path
+                paraphraser = Paraphraser(
+                    [None, teacher.all_conv_layers[-1].out_channels, None, None] if distillation_type == 'ft' else teacher.get_kernel_weights_subset([teacher.group3indices[-1]])[-1].shape, 
+                    k=paraphraser_rate, 
+                    use_bn=paraphraser_use_bn
+                ).to(device)
+                paraphraser.load(paraphrser_path, device=device.type)
+                paraphraser = paraphraser.to(device)
+                paraphraser.set_hook_device_state('same')
+                paraphraser.eval()
+
+                translator  = Translator(
+                    [None, model.all_conv_layers[-1].out_channels, None, None] if distillation_type == 'ft' else teacher.get_kernel_weights_subset([teacher.group3indices[-1]])[-1].shape, 
+                    [None, teacher.all_conv_layers[-1].out_channels, None, None] if distillation_type == 'ft' else model.get_kernel_weights_subset([teacher.group3indices[-1]])[-1].shape, 
+                    k=paraphraser_rate, 
+                    use_bn=paraphraser_use_bn
+                ).to(device)
+                translator.set_hook_device_state('same')
+                translator.train()
+                
+                optimiser_factor = optim.SGD(translator.parameters(), 
+                                             lr=distillation_params['params']['optimizer']['lr'],
+                                             momentum=distillation_params['params']['optimizer']['momentum'], 
+                                             weight_decay=distillation_params['params']['optimizer']['weight_decay'])
+                
+                optimizers.append(optimiser_factor)
+
             kd_criterion = get_loss_function(distillation_params, 
-                                            logger=logger, 
-                                            cached_logits=teacher_logits, 
-                                            cached_pre_activation_fmaps=teacher_layer_groups_preactivation_fmaps, 
-                                            cached_post_activation_fmaps=teacher_layer_groups_post_activation_fmaps,
-                                            device=device,
-                                            student=model,
-                                            teacher=teacher)
-            kd_mode = distillation_params['distillation_type']
+                                                logger=logger, 
+                                                cached_logits=teacher_logits, 
+                                                cached_pre_activation_fmaps=teacher_layer_groups_preactivation_fmaps, 
+                                                cached_post_activation_fmaps=teacher_layer_groups_post_activation_fmaps,
+                                                device=device,
+                                                student=model,
+                                                teacher=teacher,
+                                                paraphraser=paraphraser,
+                                                translator=translator)
+
         if "vanilla_temperature" in distillation_params:
             if "alpha" not in distillation_params:
                 logger("Warning: a vanilla KD temperature was specified in the kd params, but no alpha value was provided", col='yellow')
             vanilla_criterion = lf.vanilla.VanillaKDLoss(temperature=distillation_params["vanilla_temperature"], cached_teacher_logits=teacher_logits)
         config_printer.print_dict(distillation_params, "KD Params")
         teacher.set_hook_device_state(args.device if torch.cuda.is_available() else "cpu")
-        
+
 
     # Set up loss functions
     criterion = nn.CrossEntropyLoss()
@@ -206,6 +251,8 @@ def main(args):
 
     # Define the optimizer and learning rate scheduler
     optimizer = get_optimizer(params, model)
+    # prepend the optimizer to the list of optimizers
+    optimizers.insert(0, optimizer)
     schedulers = get_schedulers(params, optimizer)
 
     # Initialize TensorBoard writer
@@ -243,10 +290,12 @@ def main(args):
     start_epoch = 0
 
     if args.resume:
+        raise NotImplementedError("Resume is not implemented yet (or currently outdated and likely broken)")
+        # Need to check checkpointing for all manually implemented modules and also change it to the list of optimizers
         start_epoch = load_checkpoint(model, optimizer, schedulers, scaler, filename=args.resume, logger=logger)
 
 
-    train_step = TrainStep(model, trainloader, optimizer, scaler, schedulers, device, writer, start_time, autocast, loss_handler=loss_handler, logger=logger)
+    train_step = TrainStep(model, trainloader, optimizers, scaler, schedulers, device, writer, start_time, autocast, loss_handler=loss_handler, logger=logger)
     if args.use_val:
         validation_step = ValidationStep(model, valloader, test_val_criterion, device, writer, start_time, autocast, early_stopping, best_model_tracker, logger=logger)
     if not args.use_val or not args.disable_test:
