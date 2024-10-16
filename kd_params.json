@@ -117,62 +117,93 @@
     },
     "distillation_type": "filter_at",
     "gamma": 1.0,
-      "beta": 1000.0,
-      "params": {
-        "map_p": 2.0,
-        "loss_p": 2.0,
-        "mean_targets": ["C_out"]
-      }
-    },
-    "kAT_2_2_all": {
-      "notes": {
-        "description": "Filter attention transfer"
-      },
-      "distillation_type": "filter_at",
-      "gamma": 1.0,
-      "beta": 10.0,
-      "params": {
-        "map_p": 2.0,
-        "loss_p": 2.0,
-        "use_abs": false,
-        "layer_groups": "all"
-      }
-    },
-    "AT_Tuned": {
-      "notes": {
-        "description": "Attention transfer setup using post activations and hyperparameters obtained through hyperparameter tuning.\nThe configuration still specified the vanila temp for compatibility, but the alpha weight factor is set to 0.\n. Tuned on CIFAR100 with Resnet20 as student and Resnet56 as teacher."
-      },
-      "distillation_type": "at",
-      "gamma": 1.0,
-      "alpha": 0.0,
-      "beta": 1401.9,
-      "vanilla_temperature": 4.0,
-      "params": {
-        "mode": "impl",
-        "use_post_activation": true
-      }
-    },
-    "AT+Vanilla_Tuned": {
-      "notes": {
-        "description": "Attention transfer using post activations combined with Vanilla KD and hyperparameters obtained through hyperparameter tuning. Tuned on CIFAR100 with Resnet20 as student and Resnet56 as teacher."
-      },
-      "distillation_type": "at",
-      "gamma": 0.2,
-      "alpha": 0.80,
-      "beta": 900.0,
-      "vanilla_temperature": 5.8,
-      "params": {
-        "mode": "impl",
-        "use_post_activation": true
-      }
-    },
-    "Vanilla_Tuned": {
-      "notes": {
-        "description": "Vanilla KD with tuned hyperparameters. Tuned on CIFAR100 with Resnet20 as student and Resnet56 as teacher."
-      },
-      "gamma": 0.34,
-      "alpha": 0.66,
-      "vanilla_temperature": 10.0
+    "beta": 1000.0,
+    "params": {
+      "map_p": 2.0,
+      "loss_p": 2.0,
+      "mean_targets": ["C_out"]
     }
+  },
+  "kAT_2_2_all": {
+    "notes": {
+      "description": "Filter attention transfer"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 1.0,
+    "beta": 10.0,
+    "params": {
+      "map_p": 2.0,
+      "loss_p": 2.0,
+      "use_abs": false,
+      "layer_groups": "all"
+    }
+  },
+  "AT_Tuned": {
+    "notes": {
+      "description": "Attention transfer setup using post activations and hyperparameters obtained through hyperparameter tuning.\nThe configuration still specified the vanila temp for compatibility, but the alpha weight factor is set to 0.\n. Tuned on CIFAR100 with Resnet20 as student and Resnet56 as teacher."
+    },
+    "distillation_type": "at",
+    "gamma": 1.0,
+    "alpha": 0.0,
+    "beta": 1401.9,
+    "vanilla_temperature": 4.0,
+    "params": {
+      "mode": "impl",
+      "use_post_activation": true
+    }
+  },
+  "AT+Vanilla_Tuned": {
+    "notes": {
+      "description": "Attention transfer using post activations combined with Vanilla KD and hyperparameters obtained through hyperparameter tuning. Tuned on CIFAR100 with Resnet20 as student and Resnet56 as teacher."
+    },
+    "distillation_type": "at",
+    "gamma": 0.2,
+    "alpha": 0.80,
+    "beta": 900.0,
+    "vanilla_temperature": 5.8,
+    "params": {
+      "mode": "impl",
+      "use_post_activation": true
+    }
+  },
+  "Vanilla_Tuned": {
+    "notes": {
+      "description": "Vanilla KD with tuned hyperparameters. Tuned on CIFAR100 with Resnet20 as student and Resnet56 as teacher."
+    },
+    "gamma": 0.34,
+    "alpha": 0.66,
+    "vanilla_temperature": 10.0
+  },
+  "kAT_Tuned": {
+    "notes": {
+      "description": "Filter attention transfer with tuned hyperparameters"
+    },
+    "distillation_type": "filter_at",
+    "alpha": 0.0,
+    "gamma": 1.0,
+    "beta": 516.0,
+    "params": {
+      "map_p": 1.845,
+      "loss_p": 2.0,
+      "mean_targets": ["C_out", "C_in"],
+      "use_abs": true
+    }
+  },
+  "kAT+Vanilla_Tuned": {
+    "notes": {
+      "description": "Filter attention transfer with tuned hyperparameters"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 0.2,
+    "beta": 6298.0,
+    "alpha": 0.8,
+    "vanilla_temperature": 9.57,
+    "params": {
+      "map_p": 1.2695,
+      "loss_p": 2.0,
+      "mean_targets": ["C_in"],
+      "use_abs": true
+    }
+  }
 }
   

@@ -22,6 +22,7 @@ handy_commands.txt
 ono.bat
 ono2.bat
 /debug_runs
+/final_runs
 
 # Temporarily ignoring the AT folder
 /AT
