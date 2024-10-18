@@ -23,6 +23,7 @@ ono.bat
 ono2.bat
 /debug_runs
 /final_runs
+/through_night.bat
 
 # Temporarily ignoring the AT folder
 /AT

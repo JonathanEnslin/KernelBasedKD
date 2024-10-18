@@ -2,7 +2,7 @@ import argparse
 
 def get_arg_parser():
     parser = argparse.ArgumentParser(description="Training script for NN")
-    parser.add_argument('--params', type=str, required=True, help='Path to the hyperparameter file')
+    parser.add_argument('--params', type=str, default='params.json', help='Path to the hyperparameter file')
     parser.add_argument('--param_set', type=str, required=True, help='Name of the parameter set to use')
     parser.add_argument('--model_name', type=str, required=True, help='Model name (resnet20, resnet56, resnet110...)')
     parser.add_argument('--dataset', type=str, required=True, choices=['CIFAR10', 'CIFAR100'], help='Dataset to use (CIFAR10 or CIFAR100)')
