@@ -313,9 +313,9 @@ def main(dataset_name="CIFAR10", requested_device="cuda", runtime='xxx', log_dir
                 # "lr": pyhopper.float(0.01, 0.2, log=True, init=0.1),  # Only search the learning rate
                 "vanilla_temperature": pyhopper.float(4.0, 10.0, log=False, init=5.0) if not disable_vanilla else 10.0,
                 "alpha": pyhopper.float(0.4, 1.0, init=0.8) if not disable_vanilla else 0.0,
-                "beta": pyhopper.float(0.0, 4000.0, init=2560.0),
-                "factor_lr": pyhopper.float(0.01, 0.99, log=True, init=0.1),
-                "factor_momentum": pyhopper.float(0.9, 0.99, init=0.912, log=True),
+                "beta": pyhopper.float(3000.0, 5000.0, init=4000.0),
+                "factor_lr": pyhopper.float(0.001, 0.02, log=True, init=0.01),
+                "factor_momentum": pyhopper.float(0.91, 0.93, init=0.921, log=True),
                 "ft_p": pyhopper.choice([1, 2], is_ordinal=True, init_index=1),
             }
         )
