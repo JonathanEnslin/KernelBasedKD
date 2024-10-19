@@ -24,6 +24,7 @@ ono2.bat
 /debug_runs
 /final_runs
 /through_night.bat
+/res110_teacher_train
 
 # Temporarily ignoring the AT folder
 /AT
