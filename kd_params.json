@@ -295,6 +295,27 @@
     "use_bn": false,
     "params": {
       "p": 2.0,
+      "group": "group3",
+      "optimizer": {
+        "lr": 0.0414,
+        "momentum": 0.9130,
+        "weight_decay": 0.0
+      }
+    }
+  },
+  "kFT+Vanilla_Tuned_bn0": {
+    "notes": {
+      "description": "Kernel Factor transfer with tuned hyperparameters"
+    },
+    "distillation_type": "kft",
+    "gamma": 1.0,
+    "beta": 2560.0,
+    "alpha": 0.0,
+    "k": 0.5,
+    "use_bn": false,
+    "params": {
+      "p": 2.0,
+      "group": "group3",
       "optimizer": {
         "lr": 0.0414,
         "momentum": 0.9130,
