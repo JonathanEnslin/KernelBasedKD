@@ -191,7 +191,7 @@ def main(args):
 
                 translator  = Translator(
                     [None, model.all_conv_layers[-1].out_channels, None, None] if distillation_type == 'ft' else model.get_kernel_weights_subset([model.group3indices[-1]])[-1].shape, 
-                    [None, teacher.all_conv_layers[-1].out_channels, None, None] if distillation_type == 'ft' else model.get_kernel_weights_subset([teacher.group3indices[-1]])[-1].shape, 
+                    [None, teacher.all_conv_layers[-1].out_channels, None, None] if distillation_type == 'ft' else teacher.get_kernel_weights_subset([teacher.group3indices[-1]])[-1].shape, 
                     k=paraphraser_rate, 
                     use_bn=paraphraser_use_bn
                 ).to(device)
