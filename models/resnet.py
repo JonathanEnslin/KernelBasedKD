@@ -106,7 +106,7 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(BaseModel):
-    def __init__(self, depth, num_filters, block_name='BasicBlock', num_classes=10):
+    def __init__(self, depth, num_filters, block_name='BasicBlock', num_classes=10, conv1padding=1, conv1ksize=3, conv1stride=1, avgpooling_factor=1, fcl_inp_factor=1):
         super(ResNet, self).__init__()
         # Model type specifies number of layers for CIFAR-10 model
         if block_name.lower() == 'basicblock':
@@ -121,7 +121,8 @@ class ResNet(BaseModel):
             raise ValueError('block_name shoule be Basicblock or Bottleneck')
 
         self.inplanes = num_filters[0]
-        self.conv1 = nn.Conv2d(3, num_filters[0], kernel_size=3, padding=1,
+        self.conv1 = nn.Conv2d(3, num_filters[0], kernel_size=conv1ksize, padding=conv1padding,
+                               stride=conv1stride,
                                bias=False)
         
         self.conv1indices = [0]
@@ -139,8 +140,8 @@ class ResNet(BaseModel):
         self.layer1 = self._make_layer(block, num_filters[1], n)
         self.layer2 = self._make_layer(block, num_filters[2], n, stride=2)
         self.layer3 = self._make_layer(block, num_filters[3], n, stride=2)
-        self.avgpool = nn.AvgPool2d(8)
-        self.fc = nn.Linear(num_filters[3] * block.expansion, num_classes)
+        self.avgpool = nn.AvgPool2d(8 * avgpooling_factor)
+        self.fc = nn.Linear(num_filters[3] * block.expansion * fcl_inp_factor, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):

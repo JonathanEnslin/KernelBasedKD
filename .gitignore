@@ -25,6 +25,8 @@ ono2.bat
 /final_runs
 /through_night.bat
 /res110_teacher_train
+/tiny-imagenet-200
+/job_scripts
 
 # Temporarily ignoring the AT folder
 /AT
