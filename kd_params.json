@@ -295,6 +295,7 @@
     "use_bn": false,
     "params": {
       "p": 2.0,
+      "group": "group3",
       "optimizer": {
         "lr": 0.02,
         "momentum": 0.9214,
