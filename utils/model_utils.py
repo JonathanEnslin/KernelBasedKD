@@ -1,21 +1,21 @@
 import torch
 
-def initialize_model(model_name, num_classes, device, logger=print):
+def initialize_model(model_name, num_classes, device, logger=print, **kwargs):
     if model_name == 'resnet8':
         from models.resnet import resnet8
-        model = resnet8(num_classes=num_classes).to(device)
+        model = resnet8(num_classes=num_classes, **kwargs).to(device)
     elif model_name == 'resnet20':
         from models.resnet import resnet20
-        model = resnet20(num_classes=num_classes).to(device)
+        model = resnet20(num_classes=num_classes, **kwargs).to(device)
     elif model_name == 'resnet32':
         from models.resnet import resnet32
-        model = resnet32(num_classes=num_classes).to(device)
+        model = resnet32(num_classes=num_classes, **kwargs).to(device)
     elif model_name == 'resnet56':
         from models.resnet import resnet56
-        model = resnet56(num_classes=num_classes).to(device)
+        model = resnet56(num_classes=num_classes, **kwargs).to(device)
     elif model_name == 'resnet110':
         from models.resnet import resnet110
-        model = resnet110(num_classes=num_classes).to(device)
+        model = resnet110(num_classes=num_classes, **kwargs).to(device)
     elif model_name == 'dummy_student':
         from models.dummy_student_model import DummyStudentModel
         model = DummyStudentModel(3, 100).to(device)
@@ -24,16 +24,16 @@ def initialize_model(model_name, num_classes, device, logger=print):
         model = DummyTeacherModel(3, 100).to(device)
     elif model_name == 'resnet20x2':
         from models.resnet import resnet20x2
-        model = resnet20x2(num_classes=num_classes).to(device)
+        model = resnet20x2(num_classes=num_classes, **kwargs).to(device)
     elif model_name == 'resnet8x4':
         from models.resnet import resnet8x4
-        model = resnet8x4(num_classes=num_classes).to(device)
+        model = resnet8x4(num_classes=num_classes, **kwargs).to(device)
     elif model_name == 'resnet20x4':
         from models.resnet import resnet20x4
-        model = resnet20x4(num_classes=num_classes).to(device)
+        model = resnet20x4(num_classes=num_classes, **kwargs).to(device)
     elif model_name == 'resnet32x4':
         from models.resnet import resnet32x4
-        model = resnet32x4(num_classes=num_classes).to(device)
+        model = resnet32x4(num_classes=num_classes, **kwargs).to(device)
     else:
         logger(f"Unknown model name {model_name}")
         return None

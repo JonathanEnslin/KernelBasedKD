@@ -2,6 +2,8 @@ import torchvision.datasets;
 from torch.utils.data import Dataset
 from pathlib import Path
 from PIL import Image
+import numpy as np
+import torch
 
 # A class that extends the CIFAR100 dataset class, but getitem also returns the index of the image
 class IndexedCIFAR100(torchvision.datasets.CIFAR100):
@@ -20,31 +22,30 @@ class IndexedCIFAR10(torchvision.datasets.CIFAR10):
     def __getitem__(self, index):
         img, target = super().__getitem__(index)
         return img, target, index
-
+    
 
 class IndexedTinyImageNet(Dataset):
-    def __init__(self, root_dir: Path, split="train", transform=None):
-        self.root_dir = root_dir
+    def __init__(self, root: Path, train=True, download=True, transform=None):
+        self.root_dir = Path(root)
         self.transform = transform
-        self.split = split
+        self.train = train
         self.data = []
         self.labels = []
+        self.cached_images = {}  # Dictionary to store cached images
 
-        # Load images and labels
+        # Load image paths and labels
         self._load_data()
 
     def _load_data(self):
-        # Train/Val/Test directories
-        dataset_split_dir = self.root_dir / self.split
+        dataset_split_dir = self.root_dir / ("train" if self.train else "val")
 
-        # Iterate over class directories
         for label_dir in dataset_split_dir.glob("*"):
             class_images_dir = label_dir / "images"
             for img_path in class_images_dir.glob("*.JPEG"):
                 self.data.append(img_path)
                 self.labels.append(label_dir.name)
 
-        # Create a mapping of class names to class indices
+        # Map class names to indices
         self.label_to_index = {label: i for i, label in enumerate(sorted(set(self.labels)))}
         self.indexed_labels = [self.label_to_index[label] for label in self.labels]
 
@@ -52,14 +53,26 @@ class IndexedTinyImageNet(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        img_path = self.data[idx]
-        img = Image.open(img_path).convert("RGB")
-        label = self.indexed_labels[idx]
+        # Check if the image is already cached
+        if idx in self.cached_images:
+            img = self.cached_images[idx]
+        else:
+            # Load the image if not cached, and store it in cache
+            img = Image.open(self.data[idx]).convert("RGB")
+            self.cached_images[idx] = img  # Cache the loaded image
 
+        # Get the label and convert it to a tensor
+        label = torch.tensor(self.indexed_labels[idx], dtype=torch.long)
+
+        # Apply transformations if specified
         if self.transform:
             img = self.transform(img)
 
-        return img, label, idx  # Returning image, label, and index
+        return img, label, idx
+
+    @property
+    def targets(self):
+        return self.indexed_labels
 
 
 if __name__ == "__main__":

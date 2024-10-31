@@ -32,6 +32,21 @@ def get_cifar10_transforms():
 
     return train_transform, test_transform
 
+def get_tiny_image_net_transforms():
+    train_transform = transforms.Compose([
+        transforms.RandomCrop(64, padding=8),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4802, 0.4481, 0.3975), (0.2302, 0.2265, 0.2262))
+    ])
+
+    test_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4802, 0.4481, 0.3975), (0.2302, 0.2265, 0.2262))
+    ])
+
+    return train_transform, test_transform
+
 def get_dataset_info(dataset_name, logger=print):
     dataset_class = None
     num_classes = None
@@ -45,8 +60,13 @@ def get_dataset_info(dataset_name, logger=print):
         num_classes = 100
         transform_train, transform_test = get_cifar100_transforms()
         dataset_class = index_datasets.IndexedCIFAR100
+    elif dataset_name == 'TinyImageNet':
+        num_classes = 200
+        transform_train, transform_test = get_tiny_image_net_transforms()
+        dataset_class = index_datasets.IndexedTinyImageNet
     else:
-        logger(f"Uknown dataset: {dataset_name}")
+        logger(f"Unknown dataset name {dataset_name}")
+        raise ValueError(f"Unknown dataset name {dataset_name}")
 
 
     return dataset_class, num_classes, transform_train, transform_test

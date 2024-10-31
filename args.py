@@ -5,7 +5,7 @@ def get_arg_parser():
     parser.add_argument('--params', type=str, default='params.json', help='Path to the hyperparameter file')
     parser.add_argument('--param_set', type=str, required=True, help='Name of the parameter set to use')
     parser.add_argument('--model_name', type=str, required=True, help='Model name (resnet20, resnet56, resnet110...)')
-    parser.add_argument('--dataset', type=str, required=True, choices=['CIFAR10', 'CIFAR100'], help='Dataset to use (CIFAR10 or CIFAR100)')
+    parser.add_argument('--dataset', type=str, required=True, choices=['CIFAR10', 'CIFAR100', 'TinyImageNet'], help='Dataset to use (CIFAR10, CIFAR100 or TinyImageNet)')
     parser.add_argument('--resume', type=str, help='Path to the checkpoint file to resume training')
     parser.add_argument('--run_name', type=str, default=None, help='Optional run name to overwrite the generated name')
     parser.add_argument('--checkpoint_dir', type=str, default='run_data/checkpoints', help='Directory to save checkpoints')

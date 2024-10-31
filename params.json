@@ -88,6 +88,35 @@
       "batch_size": 64
     }
   },
+  "params9_b128": {
+    "notes": {
+      "source": "Contrastive Representation Distillation",
+      "url": "https://arxiv.org/abs/1910.10699",
+      "notes": "Values obtained from github repository: https://github.com/HobbitLong/RepDistiller/tree/master"
+    },
+    "optimizer": {
+      "type": "SGD",
+      "parameters": {
+        "lr": 0.05,
+        "momentum": 0.9,
+        "nesterov": false,
+        "weight_decay": 0.0005
+      }
+    },
+    "schedulers": [
+      {
+        "type": "MultiStepLR",
+        "parameters": {
+          "gamma": 0.1,
+          "milestones": [150, 180, 210]
+        }
+      }
+    ],
+    "training": {
+      "max_epochs": 240,
+      "batch_size": 128
+    }
+  },
   "params10": {
     "notes": {
       "source": "Adapted from Contrastive Representation Distillation",

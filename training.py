@@ -121,8 +121,17 @@ def main(args):
 
     optimizers = []
 
+    model_init_special_kwargs = {}
+    if args.dataset == 'TinyImageNet':
+        # Need to change some layers for compatibility with TinyImageNet (cifar 32x32 -> 64x64 tinyimagenet)
+        model_init_special_kwargs = {
+            'conv1stride': 2,
+            'conv1ksize': 5,
+            'conv1padding': 2
+        }
+
     # Initialize the nn model
-    model = initialize_model(args.model_name, num_classes=num_classes, device=device)
+    model = initialize_model(args.model_name, num_classes=num_classes, device=device, logger=logger, **model_init_special_kwargs)
     if model is None:
         exit(1)
 
@@ -132,7 +141,7 @@ def main(args):
     teacher=None
     kd_mode = 'base'
     if args.teacher_path is not None:
-        teacher_model = initialize_model(args.teacher_type, num_classes=num_classes, device=device)
+        teacher_model = initialize_model(args.teacher_type, num_classes=num_classes, device=device, logger=logger, **model_init_special_kwargs)
         # Load and cache (if specified) teacher model data
         logger("Setting up teacher model")
         teacher_model_handler = TeacherModelHandler(teacher_model=teacher_model,
