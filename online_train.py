@@ -133,26 +133,26 @@ if __name__ == '__main__':
             outputs_student = student(inputs)
 
             # Loss
-            loss_teacher = criterion(outputs_teacher, targets)
-            loss_ce = criterion(outputs_student, targets)
+            loss_ce_teacher = criterion(outputs_teacher, targets)
+            loss_ce_student = criterion(outputs_student, targets)
             los_kd_teacher = beta * teacher_kd_criterion(outputs_teacher, outputs_student, targets, features=inputs, indices=None)
-            loss_kd = beta * kd_criterion(outputs_student, outputs_teacher, targets, features=inputs, indices=None)
-            vanilla_loss = vanilla_kd_criterion(outputs_student, outputs_teacher, targets, features=inputs, indices=None)
+            loss_kd_student = beta * kd_criterion(outputs_student, outputs_teacher, targets, features=inputs, indices=None)
+            vanilla_loss_student = vanilla_kd_criterion(outputs_student, outputs_teacher, targets, features=inputs, indices=None)
             vanilla_teacher_loss = vanilla_kd_criterion(outputs_teacher, outputs_student, targets, features=inputs, indices=None)
-            loss_student = 0.8 * loss_ce + 0.2 * vanilla_loss + loss_kd
-            loss_teacher = 0.8 * loss_teacher + 0.8 * vanilla_teacher_loss + los_kd_teacher
+            loss_student = 0.8 * loss_ce_student + 0.2 * vanilla_loss_student + loss_kd_student
+            loss_ce_teacher = 0.8 * loss_ce_teacher + 0.2 * vanilla_teacher_loss + los_kd_teacher
             
             # Backward + optimize
-            loss_teacher.backward()
+            loss_ce_teacher.backward()
             optimizer_teacher.step()
 
             loss_student.backward()
             optimizer_student.step()
 
             # Track loss
-            running_loss_teacher += loss_teacher.item()
+            running_loss_teacher += loss_ce_teacher.item()
             running_loss_student += loss_student.item()
-            running_kd_loss += loss_kd.item()
+            running_kd_loss += loss_kd_student.item()
 
             # Print running loss every 100 batches
             if (batch_idx + 1) % 100 == 0:

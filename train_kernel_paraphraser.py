@@ -39,11 +39,19 @@ def validate_paraphraser(paraphraser, teacher_model, dataloader, criterion, devi
             val_loss += loss.item()
     return val_loss / len(dataloader)
 
-def load_teacher_model(teacher_path, num_classes, device):
+def load_teacher_model(teacher_path, num_classes, device, dataset='CIFAR10'):
+    if 'CIFAR10' in dataset:
+        special_kwargs = {}
+    elif 'TinyImageNet' in dataset:
+        special_kwargs = {
+            'conv1stride': 2,
+            'conv1ksize': 5,
+            'conv1padding': 2
+        }
     if 'resnet56' in teacher_path:
-        model = resnet56(num_classes=num_classes)
+        model = resnet56(num_classes=num_classes, **special_kwargs)
     elif 'resnet110' in teacher_path:
-        model = resnet110(num_classes=num_classes)
+        model = resnet110(num_classes=num_classes, **special_kwargs)
     else:
         raise ValueError("Teacher model must be either resnet56 or resnet110")
     
@@ -73,7 +81,7 @@ def decode_paraphraser_filename(filename):
 
 def main():
     parser = argparse.ArgumentParser(description="Train Paraphraser on pretrained teacher model")
-    parser.add_argument('--dataset', type=str, choices=['CIFAR10', 'CIFAR100'], required=True, help='Dataset to use')
+    parser.add_argument('--dataset', type=str, choices=['CIFAR10', 'CIFAR100', 'TinyImageNet'], required=True, help='Dataset to use')
     parser.add_argument('--teacher-path', type=str, required=True, help='Filepath of the pretrained teacher network')
     parser.add_argument('--k', type=float, default=0.5, help='Hyperparameter k for the paraphraser')
     parser.add_argument('--use-bn', action='store_true', help='Use batch normalization')
@@ -82,6 +90,7 @@ def main():
     args = parser.parse_args()
 
     num_classes = 10 if args.dataset == "CIFAR10" else 100
+    num_classes = 200 if args.dataset == "TinyImageNet" else num_classes
     teacher_dir = os.path.dirname(args.teacher_path)
     output_dir = os.path.join(teacher_dir, 'paraphraser')
     os.makedirs(output_dir, exist_ok=True)
@@ -112,7 +121,7 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2, persistent_workers=True)
     val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=2, persistent_workers=True)
 
-    teacher_model: ResNet = load_teacher_model(args.teacher_path, num_classes, device)
+    teacher_model: ResNet = load_teacher_model(args.teacher_path, num_classes, device, args.dataset)
     teacher_model.set_hook_device_state('same')
 
     t_shape = teacher_model.get_kernel_weights_subset([getattr(teacher_model, f'{args.layer_name}indices')[args.array_index]])[-1].shape

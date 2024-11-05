@@ -25,20 +25,24 @@ class IndexedCIFAR10(torchvision.datasets.CIFAR10):
     
 
 class IndexedTinyImageNet(Dataset):
-    def __init__(self, root: Path, train=True, download=True, transform=None):
+    def __init__(self, root: Path, train=True, download=True, transform=None, preload=False):
         self.root_dir = Path(root)
         self.transform = transform
         self.train = train
         self.data = []
         self.labels = []
         self.cached_images = {}  # Dictionary to store cached images
+        self.preload = preload
 
         # Load image paths and labels
         self._load_data()
 
+        # Preload images if specified
+        if self.preload:
+            self._preload_images()
+
     def _load_data(self):
         dataset_split_dir = self.root_dir / ("train" if self.train else "val")
-
         for label_dir in dataset_split_dir.glob("*"):
             class_images_dir = label_dir / "images"
             for img_path in class_images_dir.glob("*.JPEG"):
@@ -49,6 +53,13 @@ class IndexedTinyImageNet(Dataset):
         self.label_to_index = {label: i for i, label in enumerate(sorted(set(self.labels)))}
         self.indexed_labels = [self.label_to_index[label] for label in self.labels]
 
+    def _preload_images(self):
+        print("Preloading images...")
+        for idx, img_path in enumerate(self.data):
+            img = Image.open(img_path).convert("RGB")
+            self.cached_images[idx] = img
+        print("Preloading complete")
+
     def __len__(self):
         return len(self.data)
 
@@ -57,9 +68,10 @@ class IndexedTinyImageNet(Dataset):
         if idx in self.cached_images:
             img = self.cached_images[idx]
         else:
-            # Load the image if not cached, and store it in cache
+            # Load the image if not cached and store it in cache
             img = Image.open(self.data[idx]).convert("RGB")
-            self.cached_images[idx] = img  # Cache the loaded image
+            if self.preload:
+                self.cached_images[idx] = img  # Cache the loaded image if preload is enabled
 
         # Get the label and convert it to a tensor
         label = torch.tensor(self.indexed_labels[idx], dtype=torch.long)

@@ -1,6 +1,7 @@
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader, random_split
+from utils.data.indexed_dataset import IndexedCIFAR10, IndexedCIFAR100, IndexedTinyImageNet
 from torchvision import datasets, transforms
 import argparse
 import os
@@ -10,7 +11,7 @@ from models.FT.encoders import Paraphraser
 def train_paraphraser(paraphraser, teacher_model, dataloader, optimizer, criterion, device):
     paraphraser.train()
     running_loss = 0.0
-    for batch_idx, (images, _) in enumerate(dataloader, 1):
+    for batch_idx, (images, _, _) in enumerate(dataloader, 1):
         images = images.to(device)
         optimizer.zero_grad()
         feature_maps = teacher_model(images)
@@ -32,7 +33,7 @@ def validate_paraphraser(paraphraser, teacher_model, dataloader, criterion, devi
     paraphraser.eval()
     val_loss = 0.0
     with torch.no_grad():
-        for images, _ in dataloader:
+        for images, _, idx in dataloader:
             images = images.to(device)
             feature_maps = teacher_model(images)
             feature_maps = teacher_model.get_post_activation_fmaps(detached=True)[-1].to(device)
@@ -41,14 +42,22 @@ def validate_paraphraser(paraphraser, teacher_model, dataloader, criterion, devi
             val_loss += loss.item()
     return val_loss / len(dataloader)
 
-def load_teacher_model(teacher_path, num_classes, device):
+def load_teacher_model(teacher_path, num_classes, device, dataset='CIFAR10'):
+    if 'CIFAR10' in dataset:
+        special_kwargs = {}
+    elif 'TinyImageNet' in dataset:
+        special_kwargs = {
+            'conv1stride': 2,
+            'conv1ksize': 5,
+            'conv1padding': 2
+        }
+        
     if 'resnet56' in teacher_path:
-        model = resnet56(num_classes=num_classes)
+        model = resnet56(num_classes=num_classes, **special_kwargs)
     elif 'resnet110' in teacher_path:
-        model = resnet110(num_classes=num_classes)
+        model = resnet110(num_classes=num_classes, **special_kwargs)
     else:
         raise ValueError("Teacher model must be either resnet56 or resnet110")
-    
     model.load(teacher_path, device=device)
     model.to(device)
     model.eval()
@@ -56,7 +65,7 @@ def load_teacher_model(teacher_path, num_classes, device):
 
 def main():
     parser = argparse.ArgumentParser(description="Train Paraphraser on pretrained teacher model")
-    parser.add_argument('--dataset', type=str, choices=['CIFAR10', 'CIFAR100'], required=True, help='Dataset to use')
+    parser.add_argument('--dataset', type=str, choices=['CIFAR10', 'CIFAR100', 'TinyImageNet'], required=True, help='Dataset to use')
     parser.add_argument('--teacher-path', type=str, required=True, help='Filepath of the pretrained teacher network')
     parser.add_argument('--k', type=float, default=0.5, help='Hyperparameter k for the paraphraser')
     parser.add_argument('--use-bn', action='store_true', help='Use batch normalization')
@@ -64,6 +73,7 @@ def main():
 
     # Determine number of classes based on dataset
     num_classes = 10 if args.dataset == "CIFAR10" else 100
+    num_classes = 200 if args.dataset == "TinyImageNet" else num_classes
 
     # Determine the output directory
     teacher_dir = os.path.dirname(args.teacher_path)
@@ -80,26 +90,37 @@ def main():
             transforms.ToTensor(),
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
-        dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    else:
+        dataset = IndexedCIFAR10(root='./data', train=True, download=True, transform=transform)
+    elif args.dataset.upper() == "CIFAR100":
         transform = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
         ])
-        dataset = datasets.CIFAR100(root='./data', train=True, download=True, transform=transform)
+        dataset = IndexedCIFAR100(root='./data', train=True, download=True, transform=transform)
+    elif args.dataset.upper() == "TINYIMAGENET":
+        transform = transforms.Compose([
+            transforms.RandomCrop(64, padding=8),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4802, 0.4481, 0.3975), (0.2302, 0.2265, 0.2262))
+        ])
+        dataset = IndexedTinyImageNet(root="F:/Development/UNIV Dev/CS4/COS700/Datasets/tiny-64", transform=transform, preload=True)
 
     # Split dataset into training and validation sets
     train_size = int(0.9 * len(dataset))
+    print(f"Training size: {train_size}, Validation size: {len(dataset) - train_size}")
     val_size = len(dataset) - train_size
+    print(f"Training size: {train_size}, Validation size: {val_size}")
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
     
-    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2, persistent_workers=True)
-    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=2, persistent_workers=True)
+    num_workers = 2 if args.dataset.upper() != "TINYIMAGENET" else 2
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=num_workers, persistent_workers=True if num_workers > 0 else False)
+    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False, num_workers=num_workers, persistent_workers=True if num_workers > 0 else False)
 
     # Load the teacher model based on the filename
-    teacher_model = load_teacher_model(args.teacher_path, num_classes, device)
+    teacher_model = load_teacher_model(args.teacher_path, num_classes, device, dataset=args.dataset)
     teacher_model.set_hook_device_state('same')
 
     # Initialize the paraphraser
@@ -107,7 +128,7 @@ def main():
     print("Running teacher model on validation set to get feature map shape")
     teacher_model.eval()
     with torch.no_grad():
-        for images, labels in val_loader:
+        for images, labels, _ in val_loader:
             images = images.to(device)
             teacher_model(images)
 
