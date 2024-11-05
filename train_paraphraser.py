@@ -69,6 +69,9 @@ def main():
     parser.add_argument('--teacher-path', type=str, required=True, help='Filepath of the pretrained teacher network')
     parser.add_argument('--k', type=float, default=0.5, help='Hyperparameter k for the paraphraser')
     parser.add_argument('--use-bn', action='store_true', help='Use batch normalization')
+    parser.add_argument('--cos-lr', action='store_true', help='Use cosine annealing for learning rate scheduling')
+    parser.add_argument('--tiny64-dataset-path', type=str, default="F:/Development/UNIV Dev/CS4/COS700/Datasets/tiny-64", help='Path to TinyImageNet dataset (only applicable for TinyImageNet)')
+    parser.add_argument('--lr', type=float, default=0.1, help='Learning rate for the paraphraser')
     args = parser.parse_args()
 
     # Determine number of classes based on dataset
@@ -106,13 +109,11 @@ def main():
             transforms.ToTensor(),
             transforms.Normalize((0.4802, 0.4481, 0.3975), (0.2302, 0.2265, 0.2262))
         ])
-        dataset = IndexedTinyImageNet(root="F:/Development/UNIV Dev/CS4/COS700/Datasets/tiny-64", transform=transform, preload=True)
+        dataset = IndexedTinyImageNet(root=args.tiny64_dataset_path, transform=transform, preload=True)
 
     # Split dataset into training and validation sets
     train_size = int(0.9 * len(dataset))
-    print(f"Training size: {train_size}, Validation size: {len(dataset) - train_size}")
     val_size = len(dataset) - train_size
-    print(f"Training size: {train_size}, Validation size: {val_size}")
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
     
     num_workers = 2 if args.dataset.upper() != "TINYIMAGENET" else 2
@@ -124,7 +125,6 @@ def main():
     teacher_model.set_hook_device_state('same')
 
     # Initialize the paraphraser
-    # Run the teacher through the validation set to get the shape of the feature maps and the validation accuracy/loss
     print("Running teacher model on validation set to get feature map shape")
     teacher_model.eval()
     with torch.no_grad():
@@ -132,23 +132,30 @@ def main():
             images = images.to(device)
             teacher_model(images)
 
-
     print("Initializing paraphraser")
     t_shape = teacher_model.get_post_activation_fmaps()[-1].shape
     paraphraser = Paraphraser(t_shape, k=args.k, use_bn=args.use_bn).to(device)
-    paraphraser.to(device)
 
     # Training setup
     optimizer = optim.SGD(paraphraser.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
     criterion = nn.L1Loss()
-    # criterion = nn.MSELoss()
 
     # Training loop
     num_epochs = 30
+
+    # Set up the cosine annealing scheduler if specified
+    scheduler = None
+    if args.cos_lr:
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
+
     for epoch in range(num_epochs):
         train_loss = train_paraphraser(paraphraser, teacher_model, train_loader, optimizer, criterion, device)
         val_loss = validate_paraphraser(paraphraser, teacher_model, val_loader, criterion, device)
         print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss:.4f}, Validation Loss: {val_loss:.4f}")
+        
+        # Step the scheduler if cosine annealing is enabled
+        if scheduler is not None:
+            scheduler.step()
 
     # Save the trained paraphraser
     teacher_name = os.path.basename(args.teacher_path).split('.')[0]

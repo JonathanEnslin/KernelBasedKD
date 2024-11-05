@@ -4,6 +4,7 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 import torch
+from tqdm import tqdm
 
 # A class that extends the CIFAR100 dataset class, but getitem also returns the index of the image
 class IndexedCIFAR100(torchvision.datasets.CIFAR100):
@@ -55,7 +56,7 @@ class IndexedTinyImageNet(Dataset):
 
     def _preload_images(self):
         print("Preloading images...")
-        for idx, img_path in enumerate(self.data):
+        for idx, img_path in enumerate(tqdm(self.data, desc="Loading images", unit="image", ncols=80)):
             img = Image.open(img_path).convert("RGB")
             self.cached_images[idx] = img
         print("Preloading complete")

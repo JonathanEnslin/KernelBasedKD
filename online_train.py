@@ -6,22 +6,41 @@ from torchvision import datasets, transforms
 from tqdm import tqdm  # Progress bar
 from loss_functions.filter_at import FilterAttentionTransfer
 from loss_functions.vanilla import VanillaKDLoss
-from loss_functions.attention_transfer import ATLoss
+import argparse  # For command-line arguments
 import numpy as np
 import json  # For saving metrics to a JSON file
 
 # Assuming ResNet56 and ResNet20 exist and take num_classes as a parameter
 from models.resnet import resnet20, resnet56
 
-def save_model_weights(model, title):
+def save_model_weights(model, file_path):
     # Get all kernel weights, detached from the computation graph
     weights = model.get_all_kernel_weights(detached=True)
     # Convert to numpy arrays
     weights_np = [w.cpu().numpy() for w in weights]
     # Save to an npz file
-    np.savez(rf'e:\DLModels\model_weights\{title}.npz', *weights_np)
+    np.savez(file_path, *weights_np)
+
+def evaluate(model, dataloader, device):
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for inputs, targets in dataloader:
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = model(inputs)
+            _, predicted = torch.max(outputs.data, 1)
+            total += targets.size(0)
+            correct += (predicted == targets).sum().item()
+    return 100 * correct / total
 
 if __name__ == '__main__':
+    # Command-line arguments
+    parser = argparse.ArgumentParser(description='Training script with KD options.')
+    parser.add_argument('--save_model_name', type=str, default='trained_model', help='Filename to save the model (without extension)')
+    parser.add_argument('--two_way_kd', action='store_true', help='Flag to enable both-way KD (teacher <-> student)')
+    args = parser.parse_args()
+
     # Hyperparameters
     hparams = {
         "optimizer": {
@@ -93,20 +112,6 @@ if __name__ == '__main__':
     vanilla_kd_criterion = VanillaKDLoss(4)
     beta = 1000.0
 
-    # Define the evaluate function
-    def evaluate(model, dataloader):
-        model.eval()
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for inputs, targets in dataloader:
-                inputs, targets = inputs.to(device), targets.to(device)
-                outputs = model(inputs)
-                _, predicted = torch.max(outputs.data, 1)
-                total += targets.size(0)
-                correct += (predicted == targets).sum().item()
-        return 100 * correct / total
-
     # Training loop
     for epoch in range(hparams['training']['max_epochs']):
         teacher.train()
@@ -117,10 +122,7 @@ if __name__ == '__main__':
         running_kd_loss = 0.0
 
         progress_bar = tqdm(trainloader, desc=f"Epoch {epoch + 1}/{hparams['training']['max_epochs']}", ncols=100)
-        # Save the model weights at the beginning of each epoch
-        save_model_weights(teacher, f'teacher_epoch_{epoch}')
-        save_model_weights(student, f'student_epoch_{epoch}')
-        
+
         for batch_idx, (inputs, targets) in enumerate(progress_bar):
             inputs, targets = inputs.to(device), targets.to(device)
 
@@ -135,17 +137,21 @@ if __name__ == '__main__':
             # Loss
             loss_ce_teacher = criterion(outputs_teacher, targets)
             loss_ce_student = criterion(outputs_student, targets)
-            los_kd_teacher = beta * teacher_kd_criterion(outputs_teacher, outputs_student, targets, features=inputs, indices=None)
+
             loss_kd_student = beta * kd_criterion(outputs_student, outputs_teacher, targets, features=inputs, indices=None)
             vanilla_loss_student = vanilla_kd_criterion(outputs_student, outputs_teacher, targets, features=inputs, indices=None)
-            vanilla_teacher_loss = vanilla_kd_criterion(outputs_teacher, outputs_student, targets, features=inputs, indices=None)
             loss_student = 0.8 * loss_ce_student + 0.2 * vanilla_loss_student + loss_kd_student
-            loss_ce_teacher = 0.8 * loss_ce_teacher + 0.2 * vanilla_teacher_loss + los_kd_teacher
-            
-            # Backward + optimize
-            loss_ce_teacher.backward()
-            optimizer_teacher.step()
 
+            # Optional two-way KD
+            if args.two_way_kd:
+                loss_kd_teacher = beta * teacher_kd_criterion(outputs_teacher, outputs_student, targets, features=inputs, indices=None)
+                vanilla_teacher_loss = vanilla_kd_criterion(outputs_teacher, outputs_student, targets, features=inputs, indices=None)
+                loss_ce_teacher = 0.8 * loss_ce_teacher + 0.2 * vanilla_teacher_loss + loss_kd_teacher
+                # Backward for teacher
+                loss_ce_teacher.backward()
+                optimizer_teacher.step()
+
+            # Backward + optimize for student
             loss_student.backward()
             optimizer_student.step()
 
@@ -165,15 +171,19 @@ if __name__ == '__main__':
 
         # Evaluate every 5 epochs
         if (epoch + 1) % 5 == 0:
-            teacher_accuracy = evaluate(teacher, testloader)
-            student_accuracy = evaluate(student, testloader)
+            teacher_accuracy = evaluate(teacher, testloader, device)
+            student_accuracy = evaluate(student, testloader, device)
             print(f'Epoch [{epoch + 1}/{hparams["training"]["max_epochs"]}] '
                   f'Teacher Accuracy: {teacher_accuracy:.2f}% '
                   f'Student Accuracy: {student_accuracy:.2f}%')
 
     # Final evaluation
-    teacher_accuracy = evaluate(teacher, testloader)
-    student_accuracy = evaluate(student, testloader)
+    teacher_accuracy = evaluate(teacher, testloader, device)
+    student_accuracy = evaluate(student, testloader, device)
 
     print(f'Final Teacher Model Accuracy: {teacher_accuracy:.2f}%')
     print(f'Final Student Model Accuracy: {student_accuracy:.2f}%')
+
+    # Save model weights at the end of training
+    save_model_weights(teacher, rf'e:\DLModels\model_weights\{args.save_model_name}_teacher.npz')
+    save_model_weights(student, rf'e:\DLModels\model_weights\{args.save_model_name}_student.npz')
