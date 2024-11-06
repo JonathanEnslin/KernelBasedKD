@@ -323,6 +323,83 @@
         "weight_decay": 0.0
       }
     }
+  },
+  "kAT_Tuned_b_2000": {
+    "notes": {
+      "description": "Filter attention transfer with tuned hyperparameters"
+    },
+    "distillation_type": "filter_at",
+    "alpha": 0.0,
+    "gamma": 1.0,
+    "beta": 2000.0,
+    "params": {
+      "map_p": 1.845,
+      "loss_p": 2.0,
+      "mean_targets": ["C_out", "C_in"],
+      "use_abs": true
+    }
+  },
+  "kAT_Tuned_b_2000_all": {
+    "notes": {
+      "description": "Filter attention transfer with tuned hyperparameters"
+    },
+    "distillation_type": "filter_at",
+    "alpha": 0.0,
+    "gamma": 1.0,
+    "beta": 2000.0,
+    "params": {
+      "map_p": 1.845,
+      "loss_p": 2.0,
+      "mean_targets": ["C_out", "C_in"],
+      "use_abs": true,
+      "layer_groups": "all"
+    }
+  },
+  "kAT_Tuned_b_2000_no_agg": {
+    "notes": {
+      "description": "Filter attention transfer with tuned hyperparameters"
+    },
+    "distillation_type": "filter_at",
+    "alpha": 0.0,
+    "gamma": 1.0,
+    "beta": 2000.0,
+    "params": {
+      "map_p": 1.845,
+      "loss_p": 2.0,
+      "mean_targets": [],
+      "use_abs": true
+    }
+  },
+  "kAT_Tuned_b_2000_no_agg_no_abs": {
+    "notes": {
+      "description": "Filter attention transfer with tuned hyperparameters"
+    },
+    "distillation_type": "filter_at",
+    "alpha": 0.0,
+    "gamma": 1.0,
+    "beta": 2000.0,
+    "params": {
+      "map_p": 1.845,
+      "loss_p": 2.0,
+      "mean_targets": [],
+      "use_abs": false
+    }
+  },
+  "kAT+Vanilla_no_agg_no_abs": {
+    "notes": {
+      "description": "Filter attention transfer with tuned hyperparameters"
+    },
+    "distillation_type": "filter_at",
+    "gamma": 0.2,
+    "alpha": 0.8,
+    "beta": 500.0,
+    "vanilla_temperature": 10.0,
+    "params": {
+      "map_p": 1.0,
+      "loss_p": 2.0,
+      "mean_targets": [],
+      "use_abs": false
+    }
   }
 }
   

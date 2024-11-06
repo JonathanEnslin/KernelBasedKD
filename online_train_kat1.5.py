@@ -109,12 +109,16 @@ if __name__ == '__main__':
     # KD variables
     kd_criterion = FilterAttentionTransfer(student=student, teacher=teacher, map_p=1.0, loss_p=2, use_abs=False, mean_targets=[], layer_groups='all')
     teacher_kd_criterion = FilterAttentionTransfer(student=teacher, teacher=student, map_p=1.0, loss_p=2, use_abs=False, mean_targets=[], layer_groups='all')
-    vanilla_kd_criterion = VanillaKDLoss(4)
-    beta = 1000.0
+    vanilla_kd_criterion = VanillaKDLoss(10)
+    alpha = 0.0
+    beta = 500.0
+
+    save_dir = os.path.join('run_data', 'online_training')
+    os.makedirs(save_dir, exist_ok=True)
 
     # CSV file setup for tracking metrics
-    train_csv_path = rf'e:\DLModels\metrics\{args.save_model_name}.train.csv'
-    test_csv_path = rf'e:\DLModels\metrics\{args.save_model_name}.test.csv'
+    train_csv_path = rf'{save_dir}/{args.save_model_name}.train.csv'
+    test_csv_path = rf'{save_dir}/{args.save_model_name}.test.csv'
 
     with open(train_csv_path, mode='w', newline='') as train_csv_file:
         train_writer = csv.writer(train_csv_file)
@@ -152,13 +156,13 @@ if __name__ == '__main__':
 
             loss_kd_student = beta * kd_criterion(outputs_student, outputs_teacher, targets, features=inputs, indices=None)
             vanilla_loss_student = vanilla_kd_criterion(outputs_student, outputs_teacher, targets, features=inputs, indices=None)
-            loss_student = 0.8 * loss_ce_student + 0.2 * vanilla_loss_student + loss_kd_student
+            loss_student = (1-alpha) * loss_ce_student + (alpha) * vanilla_loss_student + loss_kd_student
 
             # Optional two-way KD
             if args.two_way_kd:
                 loss_kd_teacher = beta * teacher_kd_criterion(outputs_teacher, outputs_student, targets, features=inputs, indices=None)
                 vanilla_teacher_loss = vanilla_kd_criterion(outputs_teacher, outputs_student, targets, features=inputs, indices=None)
-                loss_ce_teacher = 0.8 * loss_ce_teacher + 0.2 * vanilla_teacher_loss + loss_kd_teacher
+                loss_ce_teacher = (1-alpha) * loss_ce_teacher + (alpha) * vanilla_teacher_loss + loss_kd_teacher
                 # Backward for teacher
                 loss_ce_teacher.backward()
                 optimizer_teacher.step()
@@ -212,7 +216,6 @@ if __name__ == '__main__':
         test_writer.writerow([hparams['training']['max_epochs'], teacher_accuracy, teacher_loss, student_accuracy, student_loss])
 
     # Save models at the end of training
-    save_dir = os.path.join('run_data', 'online_training')
-    os.makedirs(save_dir, exist_ok=True)
+
     teacher.save(os.path.join(save_dir, f'{args.save_model_name}_teacher.pth'))
     student.save(os.path.join(save_dir, f'{args.save_model_name}_student.pth'))

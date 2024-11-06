@@ -4,13 +4,13 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score, f1_score
 from utils.data.indexed_dataset import IndexedTinyImageNet, IndexedCIFAR10, IndexedCIFAR100
-from models.resnet import resnet20, resnet32, resnet56, resnet110
+from models.resnet import resnet20, resnet32, resnet56, resnet110, resnet20x4
 
 # Define dataset and transformations
-dataset = 'TinyImageNet'
+dataset = 'CIFAR100'
 # Path to the saved model
-model_path = r'C:\Users\jonat\OneDrive\UNIV stuff\CS4\COS700\Dev\KernelBasedKD\teacher_models\models\resnet110\resnet110@TinyImageNet_params10_#2_best.pth'
-model_name = 'resnet110'  # Change this according to your model
+model_path = r'teacher_models/models/resnet20/resnet20_cifar100_71p25.pth'
+model_name = 'resnet20'  # Change this according to your model
 
 if __name__ == '__main__':
     num_classes = 100 if dataset == 'CIFAR100' else (10 if dataset == 'CIFAR10' else 200)
@@ -66,6 +66,8 @@ if __name__ == '__main__':
             model = resnet56(num_classes=num_classes, **model_init_special_kwargs)
         elif model_name == 'resnet110':
             model = resnet110(num_classes=num_classes, **model_init_special_kwargs)
+        elif model_name == 'resnet20x4':
+            model = resnet20x4(num_classes=num_classes, **model_init_special_kwargs)
         else:
             raise ValueError(f"Unknown model name {model_name}")
         
@@ -91,7 +93,11 @@ if __name__ == '__main__':
             for data in data_loader:
                 print(f"Batch {index} / {len(data_loader)}")
                 index += 1
-                images, labels, _ = data
+                try:
+                    images, labels = data
+                except:
+                    images, labels, _ = data
+                    
                 images, labels = images.to(device), labels.to(device)
                 
                 outputs = model(images)

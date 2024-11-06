@@ -5,6 +5,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torchvision import datasets, transforms
 from tqdm import tqdm  # Progress bar
 from loss_functions.filter_at import FilterAttentionTransfer
+from loss_functions.attention_transfer import ATLoss
 from loss_functions.vanilla import VanillaKDLoss
 import argparse  # For command-line arguments
 import numpy as np
@@ -13,7 +14,7 @@ import csv  # For saving metrics to a CSV file
 import os  # For directory operations
 
 # Assuming ResNet56 and ResNet20 exist and take num_classes as a parameter
-from models.resnet import resnet20, resnet56
+from models.resnet import resnet20, resnet56, resnet20x4
 
 def evaluate(model, dataloader, device):
     model.eval()
@@ -90,7 +91,7 @@ if __name__ == '__main__':
     num_classes = 100
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     student = resnet20(num_classes=num_classes).to(device)
-    teacher = resnet20(num_classes=num_classes).to(device)
+    teacher = resnet56(num_classes=num_classes).to(device)
 
     teacher.set_hook_device_state('same')
     student.set_hook_device_state('same')
@@ -107,14 +108,17 @@ if __name__ == '__main__':
     criterion = nn.CrossEntropyLoss()
 
     # KD variables
-    kd_criterion = FilterAttentionTransfer(student=student, teacher=teacher, map_p=1.0, loss_p=2, use_abs=False, mean_targets=[], layer_groups='all')
-    teacher_kd_criterion = FilterAttentionTransfer(student=teacher, teacher=student, map_p=1.0, loss_p=2, use_abs=False, mean_targets=[], layer_groups='all')
-    vanilla_kd_criterion = VanillaKDLoss(4)
-    beta = 1000.0
+    kd_criterion = ATLoss(student=student, teacher=teacher, use_post_activation=True)
+    teacher_kd_criterion = ATLoss(student=teacher, teacher=student, use_post_activation=True)
+    vanilla_kd_criterion = VanillaKDLoss(10)
+    beta = 500.0
+
+    save_dir = os.path.join('run_data', 'online_training')
+    os.makedirs(save_dir, exist_ok=True)
 
     # CSV file setup for tracking metrics
-    train_csv_path = rf'e:\DLModels\metrics\{args.save_model_name}.train.csv'
-    test_csv_path = rf'e:\DLModels\metrics\{args.save_model_name}.test.csv'
+    train_csv_path = rf'{save_dir}/{args.save_model_name}.train.csv'
+    test_csv_path = rf'{save_dir}/{args.save_model_name}.test.csv'
 
     with open(train_csv_path, mode='w', newline='') as train_csv_file:
         train_writer = csv.writer(train_csv_file)
@@ -212,7 +216,6 @@ if __name__ == '__main__':
         test_writer.writerow([hparams['training']['max_epochs'], teacher_accuracy, teacher_loss, student_accuracy, student_loss])
 
     # Save models at the end of training
-    save_dir = os.path.join('run_data', 'online_training')
-    os.makedirs(save_dir, exist_ok=True)
+
     teacher.save(os.path.join(save_dir, f'{args.save_model_name}_teacher.pth'))
     student.save(os.path.join(save_dir, f'{args.save_model_name}_student.pth'))
